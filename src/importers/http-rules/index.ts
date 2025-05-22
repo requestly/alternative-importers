@@ -1,1 +1,1 @@
-export { importModheader } from "./modheader";
+export { modheaderImporter as importModheader } from "./modheader";

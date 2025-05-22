@@ -18,7 +18,7 @@ interface ModheaderProfile {
 
 const notSupportedFeatures: string[] = [];
 
-export const importModheader: HttpRuleImporterMethod<ModheaderProfile[]> = (
+export const modheaderImporter: HttpRuleImporterMethod<ModheaderProfile[]> = (
   profiles
 ) => {
   const outputRecords: (Rule | Group)[] = [];
