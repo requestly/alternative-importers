@@ -26,7 +26,7 @@ export const modheaderImporter: HttpRuleImporterMethod<ModheaderProfile[]> = (
 
   profiles.forEach((profile) => {
     try {
-      const records = importModheaderProfile(profile);
+      const records = parseModheaderProfile(profile);
       outputRecords.push(...records);
     } catch (err: any) {
       errors.push({
@@ -42,7 +42,7 @@ export const modheaderImporter: HttpRuleImporterMethod<ModheaderProfile[]> = (
   };
 };
 
-const importModheaderProfile = (
+const parseModheaderProfile = (
   profile: ModheaderProfile
 ): (Rule | Group)[] => {
   // TODO
