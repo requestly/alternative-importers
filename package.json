@@ -1,0 +1,30 @@
+{
+  "name": "@requestly/alternative-importers",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "rimraf ./dist && rollup -c --bundleConfigAsCjs"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@requestly/shared": "^1.0.2"
+  },
+  "devDependencies": {
+    "@rollup/plugin-alias": "^5.1.1",
+    "@rollup/plugin-babel": "^6.0.4",
+    "@rollup/plugin-commonjs": "^28.0.3",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^16.0.1",
+    "@rollup/plugin-typescript": "^12.1.2",
+    "rollup": "^4.41.0",
+    "tslib": "^2.8.1",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  },
+  "files": [
+    "dist"
+  ]
+}
