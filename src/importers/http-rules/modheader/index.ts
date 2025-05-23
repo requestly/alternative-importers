@@ -108,7 +108,7 @@ export const getNewRule = (ruleType: RuleType) => {
     ruleType: ruleType,
     id: `${ruleType}_${generateObjectId()}`,
     creationDate: generateObjectCreationDate(),
-    objectType: RecordType.GROUP,
+    objectType: RecordType.RULE,
     status: RecordStatus.INACTIVE,
     ...extraRuleConfig,
   };
