@@ -3,99 +3,140 @@
  * @param input The parsed JSON from Header Editor (input.json)
  * @returns The Requestly export JSON structure
  */
-export function headerEditorImporter(input: any): any {
-  const rules: any[] = [];
+import {
+  Rule,
+  Group,
+  RuleSourceKey,
+  RecordType,
+  RedirectRule,
+  RuleSourceOperator,
+  RuleType,
+  RecordStatus,
+  HeaderRule,
+} from "@requestly/shared/types/entities/rules";
+import {
+  HttpRuleImporterMethod,
+  HttpRuleImporterOutput,
+} from "~/importers/types";
+
+interface ModifyHeaderAction {
+  name?: string;
+  value?: string;
+}
+
+interface HeaderEditorRule {
+  enable?: boolean;
+  name?: string;
+  ruleType:
+    | "cancel"
+    | "redirect"
+    | "modifySendHeader"
+    | "modifyReceiveHeader"
+    | "modifyReceiveBody";
+  matchType: "domain" | "prefix" | "regexp" | "all" | "url";
+  pattern: string;
+  exclude: string;
+  group: string;
+  isFunction: boolean;
+  action?: ModifyHeaderAction | "cancel" | "redirect";
+  encoding?: string;
+  to?: string;
+  code?: string;
+}
+
+interface HeaderEditorProfile {
+  request?: HeaderEditorRule[];
+  sendHeader?: HeaderEditorRule[];
+  receiveHeader?: HeaderEditorRule[];
+  reveiveBody?: HeaderEditorRule[];
+}
+
+const notSupportedFeatures: string[] = ["reveiveBody"];
+
+export const headerEditorImporter: HttpRuleImporterMethod<
+  HeaderEditorProfile
+> = (profiles) => {
+  const outputRecords: (Rule | Group)[] = [];
+  const errors: HttpRuleImporterOutput["errors"] = [];
+
+  try {
+    const records = parseHeaderEditorProfile(profiles);
+    outputRecords.push(...records);
+  } catch (err: any) {
+    errors.push({
+      message: `Failed to import profile: ${err?.message}`,
+    });
+  }
+
+  return {
+    data: outputRecords,
+    notSupportedFeatures,
+    errors,
+  };
+};
+
+const parseHeaderEditorProfile = (
+  profile: HeaderEditorProfile
+): (Rule | Group)[] => {
+  const outputRecords: (Rule | Group)[] = [];
 
   // Helper for status
   const getStatus = (enable: boolean | undefined) =>
-    enable === false ? "Inactive" : "Active";
+    enable === false ? RecordStatus.INACTIVE : RecordStatus.ACTIVE;
 
   // --- Redirect & Cancel rules ---
-  (input.request || []).forEach((rule: any) => {
+  (profile.request || []).forEach((rule: any) => {
     const { operator, filterField } = mapMatchTypeToOperator(rule.matchType);
     if (rule.ruleType === "redirect") {
       let pattern = rule.pattern;
-      rules.push({
-        createdBy: DEFAULT_USER,
+      outputRecords.push({
         creationDate: Date.now(),
-        currentOwner: DEFAULT_USER,
-        description:
-          "Redirect Rule imported from Header Editor",
-        extensionRules: [
-          {
-            action: {
-              redirect: { url: rule.to },
-              type: "redirect",
-            },
-            condition: {
-              excludedInitiatorDomains: ["requestly.io"],
-              excludedRequestDomains: ["requestly.io"],
-              isUrlFilterCaseSensitive: true,
-              [filterField]: filterField==='regexFilter' ? '.*?' + pattern + '.*' : pattern,
-            },
-          },
-        ],
-        groupId: DEFAULT_GROUP_ID,
+        description: "Redirect Rule imported from Header Editor",
+        groupId: GROUP_ID,
         id: randomId("Redirect"),
         isReadOnly: true,
-        lastModifiedBy: DEFAULT_USER,
         modificationDate: Date.now(),
         name: rule.name || "Redirect Rule",
-        objectType: "rule",
+        objectType: RecordType.RULE,
         pairs: [
           {
             destination: rule.to,
-            destinationType: "url",
+            destinationType: RedirectRule.DestinationType.URL,
             id: randomId("id"),
             source: {
-              key: "Url",
+              key: RuleSourceKey.URL,
               operator,
-              value: filterField === 'regexFilter' ? '/' + pattern + '/' : pattern,
+              value:
+                filterField === "regexFilter" ? "/" + pattern + "/" : pattern,
             },
           },
         ],
-        preserveCookie: false,
-        ruleType: "Redirect",
-        sampleId: "fHdTHi18fWcnPAhUOeL7",
+        ruleType: RuleType.REDIRECT,
         schemaVersion: "3.0.0",
         status: getStatus(rule.enable),
       });
     } else if (rule.ruleType === "cancel") {
       let pattern = rule.pattern;
-      rules.push({
-        createdBy: DEFAULT_USER,
+      outputRecords.push({
         creationDate: Date.now(),
-        currentOwner: DEFAULT_USER,
         description: "Block all the outgoing requests to the products API",
-        extensionRules: [
-          {
-            action: { type: "block" },
-            condition: {
-              excludedInitiatorDomains: ["requestly.io"],
-              excludedRequestDomains: ["requestly.io"],
-              isUrlFilterCaseSensitive: true,
-              [filterField]: pattern,
-            },
-          },
-        ],
-        groupId: DEFAULT_GROUP_ID,
+        groupId: GROUP_ID,
         id: randomId("Cancel"),
         isSample: false,
-        lastModifiedBy: DEFAULT_USER,
         modificationDate: Date.now(),
         name: rule.name || "Cancel Rule",
-        objectType: "rule",
+        objectType: RecordType.RULE,
         pairs: [
           {
             id: randomId("id"),
             source: {
-              key: "Url",
+              key: RuleSourceKey.URL,
               operator,
               value: pattern,
             },
           },
         ],
-        ruleType: "Cancel",
+        ruleType: RuleType.CANCEL,
         schemaVersion: "3.0.0",
         status: getStatus(rule.enable),
       });
@@ -104,40 +145,18 @@ export function headerEditorImporter(input: any): any {
 
   // --- Header modification rules ---
   // Handle sendHeader rules
-  (input.sendHeader || []).forEach((rule: any) => {
+  (profile.sendHeader || []).forEach((rule: any) => {
     const { operator, filterField } = mapMatchTypeToOperator(rule.matchType);
-    rules.push({
-      createdBy: DEFAULT_USER,
+    outputRecords.push({
       creationDate: Date.now(),
-      currentOwner: DEFAULT_USER,
-      description: rule.name || "Modify Request Header imported from Header Editor",
-      extensionRules: [
-        {
-          action: {
-            requestHeaders: [
-              {
-                header: rule.action?.name || "",
-                operation: "set",
-                value: rule.action?.value || "",
-              },
-            ],
-            type: "modifyHeaders",
-          },
-          condition: {
-            excludedInitiatorDomains: ["requestly.io"],
-            excludedRequestDomains: ["requestly.io"],
-            isUrlFilterCaseSensitive: true,
-            [filterField]: rule.pattern,
-          },
-        },
-      ],
-      groupId: DEFAULT_GROUP_ID,
+      description:
+        rule.name || "Modify Request Header imported from Header Editor",
+      groupId: GROUP_ID,
       id: randomId("Headers"),
       isSample: false,
-      lastModifiedBy: DEFAULT_USER,
       modificationDate: Date.now(),
       name: rule.name || "Request Header Rule",
-      objectType: "rule",
+      objectType: RecordType.RULE,
       pairs: [
         {
           id: randomId("id"),
@@ -146,19 +165,19 @@ export function headerEditorImporter(input: any): any {
               {
                 header: rule.action?.name || "",
                 id: randomId("id"),
-                type: "Add",
+                type: HeaderRule.ModificationType.ADD,
                 value: rule.action?.value || "",
               },
             ],
           },
           source: {
-            key: "Url",
+            key: RuleSourceKey.URL,
             operator,
             value: rule.pattern,
           },
         },
       ],
-      ruleType: "Headers",
+      ruleType: RuleType.HEADERS,
       schemaVersion: "3.0.0",
       status: getStatus(rule.enable),
       version: 2,
@@ -166,40 +185,18 @@ export function headerEditorImporter(input: any): any {
   });
 
   // Handle receiveHeader rules
-  (input.receiveHeader || []).forEach((rule: any) => {
+  (profile.receiveHeader || []).forEach((rule: any) => {
     const { operator, filterField } = mapMatchTypeToOperator(rule.matchType);
-    rules.push({
-      createdBy: DEFAULT_USER,
+    outputRecords.push({
       creationDate: Date.now(),
-      currentOwner: DEFAULT_USER,
-      description: rule.name || "Modify Response Header imported from Header Editor",
-      extensionRules: [
-        {
-          action: {
-            responseHeaders: [
-              {
-                header: rule.action?.name || "",
-                operation: "set",
-                value: rule.action?.value || "",
-              },
-            ],
-            type: "modifyHeaders",
-          },
-          condition: {
-            excludedInitiatorDomains: ["requestly.io"],
-            excludedRequestDomains: ["requestly.io"],
-            isUrlFilterCaseSensitive: true,
-            [filterField]: rule.pattern,
-          },
-        },
-      ],
-      groupId: DEFAULT_GROUP_ID,
+      description:
+        rule.name || "Modify Response Header imported from Header Editor",
+      groupId: GROUP_ID,
       id: randomId("Headers"),
       isSample: false,
-      lastModifiedBy: DEFAULT_USER,
       modificationDate: Date.now(),
       name: rule.name || "Response Header Rule",
-      objectType: "rule",
+      objectType: RecordType.RULE,
       pairs: [
         {
           id: randomId("id"),
@@ -208,19 +205,19 @@ export function headerEditorImporter(input: any): any {
               {
                 header: rule.action?.name || "",
                 id: randomId("id"),
-                type: "Add",
+                type: HeaderRule.ModificationType.ADD,
                 value: rule.action?.value || "",
               },
             ],
           },
           source: {
-            key: "Url",
+            key: RuleSourceKey.URL,
             operator,
             value: rule.pattern,
           },
         },
       ],
-      ruleType: "Headers",
+      ruleType: RuleType.HEADERS,
       schemaVersion: "3.0.0",
       status: getStatus(rule.enable),
       version: 2,
@@ -228,50 +225,57 @@ export function headerEditorImporter(input: any): any {
   });
 
   // --- Group ---
-  rules.push({
-    createdBy: DEFAULT_USER,
+  outputRecords.push({
     creationDate: Date.now(),
-    currentOwner: DEFAULT_USER,
     description: "",
-    id: DEFAULT_GROUP_ID,
-    lastModifiedBy: DEFAULT_USER,
+    id: GROUP_ID,
     modificationDate: Date.now(),
     name: "Header Editor Import",
-    objectType: "group",
-    status: "Inactive",
-    children: [],
+    objectType: RecordType.GROUP,
+    status: RecordStatus.INACTIVE,
   });
+  return outputRecords;
+};
 
-  return rules;
-}
-
-function mapMatchTypeToOperator(matchType: string | undefined): { operator: string, filterField: string } {
-  switch ((matchType || '').toLowerCase()) {
-    case 'all':
-      return { operator: 'Equals', filterField: 'urlFilter' };
-    case 'prefix':
-      return { operator: 'Contains', filterField: 'urlFilter' };
-    case 'domain':
-      return { operator: 'Contains', filterField: 'urlFilter' };
-    case 'url':
-      return { operator: 'Equals', filterField: 'urlFilter' };
-    case 'regexp':
-      return { operator: 'Matches', filterField: 'regexFilter' };
-    case 'wildcard':
-      return { operator: 'Wildcard', filterField: 'urlFilter' };
+function mapMatchTypeToOperator(matchType: string | undefined): {
+  operator: RuleSourceOperator;
+  filterField: string;
+} {
+  switch ((matchType || "").toLowerCase()) {
+    case "all":
+      return { operator: RuleSourceOperator.EQUALS, filterField: "urlFilter" };
+    case "prefix":
+      return {
+        operator: RuleSourceOperator.CONTAINS,
+        filterField: "urlFilter",
+      };
+    case "domain":
+      return {
+        operator: RuleSourceOperator.CONTAINS,
+        filterField: "urlFilter",
+      };
+    case "url":
+      return { operator: RuleSourceOperator.EQUALS, filterField: "urlFilter" };
+    case "regexp":
+      return {
+        operator: RuleSourceOperator.MATCHES,
+        filterField: "regexFilter",
+      };
+    case "wildcard":
+      return {
+        operator: RuleSourceOperator.WILDCARD_MATCHES,
+        filterField: "urlFilter",
+      };
     default:
-      return { operator: 'Contains', filterField: 'urlFilter' };
+      return {
+        operator: RuleSourceOperator.CONTAINS,
+        filterField: "urlFilter",
+      };
   }
 }
 
 function randomId(prefix: string) {
-  return (
-    prefix +
-    "_" +
-    Math.random().toString(36).substring(2, 7)
-  );
+  return prefix + "_" + Math.random().toString(36).substring(2, 7);
 }
 
-
-const DEFAULT_USER = "";
-const DEFAULT_GROUP_ID = randomId("Group");
+const GROUP_ID = randomId("Group");
