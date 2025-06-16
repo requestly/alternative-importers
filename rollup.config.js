@@ -16,13 +16,13 @@ export default {
       dir: "./dist",
       format: "cjs",
       entryFileNames: "[name].cjs.js",
-      preserveModules: true,
+      // preserveModules: true,
     },
     {
       dir: "./dist",
       format: "esm",
       entryFileNames: "[name].esm.js",
-      preserveModules: true,
+      // preserveModules: true,
     },
   ],
   plugins: [

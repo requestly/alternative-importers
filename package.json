@@ -1,8 +1,8 @@
 {
   "name": "@requestly/alternative-importers",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "",
-  "main": "dist/index.js",
+  "main": "dist/index.cjs.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "rimraf ./dist && rollup -c --bundleConfigAsCjs"
@@ -11,6 +11,13 @@
   "license": "ISC",
   "dependencies": {
     "@requestly/shared": "^1.0.2"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.cjs.js",
+      "import": "./dist/index.esm.js"
+    }
   },
   "devDependencies": {
     "@rollup/plugin-alias": "^5.1.1",
