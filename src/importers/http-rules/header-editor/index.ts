@@ -51,33 +51,27 @@ interface HeaderEditorProfile {
   reveiveBody?: HeaderEditorRule[];
 }
 
-const notSupportedFeatures: string[] = ["reveiveBody"];
+const notSupportedFeatures: string[] = ["receiveBody"];
 
 export const headerEditorImporter: HttpRuleImporterMethod<
   HeaderEditorProfile
-> = (profiles) => {
+> = (profile) => {
   const outputRecords: (Rule | Group)[] = [];
   const errors: HttpRuleImporterOutput["errors"] = [];
 
-  try {
-    const records = parseHeaderEditorProfile(profiles);
-    outputRecords.push(...records);
-  } catch (err: any) {
-    errors.push({
-      message: `Failed to import profile: ${err?.message}`,
-    });
-  }
+  const result = parseHeaderEditorProfile(profile);
 
   return {
-    data: outputRecords,
+    data: result.data,
     notSupportedFeatures,
-    errors,
+    errors: result.errors,
   };
 };
 
-const parseHeaderEditorProfile = (
+const parseHeaderEditorProfile: HttpRuleImporterMethod<HeaderEditorProfile> = (
   profile: HeaderEditorProfile
-): (Rule | Group)[] => {
+) => {
+  const result: HttpRuleImporterOutput = {};
   const outputRecords: (Rule | Group)[] = [];
 
   // Helper for status
@@ -89,6 +83,7 @@ const parseHeaderEditorProfile = (
     const { operator, filterField } = mapMatchTypeToOperator(rule.matchType);
     if (rule.ruleType === "redirect") {
       let pattern = rule.pattern;
+      // TODO: Use use a common template in @requestly/shared for generating rules.
       outputRecords.push({
         creationDate: Date.now(),
         description: "Redirect Rule imported from Header Editor",
@@ -180,6 +175,7 @@ const parseHeaderEditorProfile = (
       ruleType: RuleType.HEADERS,
       schemaVersion: "3.0.0",
       status: getStatus(rule.enable),
+      // @ts-ignore
       version: 2,
     });
   });
@@ -220,6 +216,7 @@ const parseHeaderEditorProfile = (
       ruleType: RuleType.HEADERS,
       schemaVersion: "3.0.0",
       status: getStatus(rule.enable),
+      // @ts-ignore
       version: 2,
     });
   });
@@ -234,7 +231,11 @@ const parseHeaderEditorProfile = (
     objectType: RecordType.GROUP,
     status: RecordStatus.INACTIVE,
   });
-  return outputRecords;
+
+  result.data = outputRecords;
+  result.errors = []; // Should be added if any of the above adapters fails.
+
+  return result;
 };
 
 function mapMatchTypeToOperator(matchType: string | undefined): {
