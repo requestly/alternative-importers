@@ -4,7 +4,7 @@ export interface HttpRuleImporterOutput {
   data?: (Rule | Group)[];
   notSupportedFeatures?: string[]; // Eg: ["mapLocal", "mapRemote"]. Depends on the type of importer
   errors?: {
-    // Any errors that occurred during the import process
+    // Any errors that occurred during the import process but doesn't break the import
     message: string;
   }[];
 }

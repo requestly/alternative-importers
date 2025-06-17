@@ -1,0 +1,72 @@
+{
+	"request": [
+		{
+			"enable": false,
+			"name": "Cancel Rule domain",
+			"ruleType": "cancel",
+			"matchType": "domain",
+			"pattern": "modheader.com",
+			"exclude": "",
+			"group": "Ungrouped",
+			"isFunction": false,
+			"action": "cancel"
+		},
+		{
+			"enable": true,
+			"name": "Cancel Requst URL prefix",
+			"ruleType": "cancel",
+			"matchType": "prefix",
+			"pattern": "https://dev.to",
+			"exclude": "",
+			"group": "New Group",
+			"isFunction": false,
+			"action": "cancel"
+		},
+		{
+			"enable": true,
+			"name": "Redirect Regular Exp",
+			"ruleType": "redirect",
+			"matchType": "regexp",
+			"pattern": "https:\\/\\/www\\.requestly-playground\\.com\\/_next\\/static\\/.*\\/_buildManifest\\.js",
+			"exclude": "",
+			"group": "Ungrouped",
+			"isFunction": true,
+			"action": "redirect",
+			"to": "https://user21579.requestly.tech/internal/build?",
+			"code": "console.log(\"hi\")\nreturn"
+		}
+	],
+	"sendHeader": [
+		{
+			"enable": false,
+			"name": "Modify Request Header URL",
+			"ruleType": "modifySendHeader",
+			"matchType": "url",
+			"pattern": "https://www.requestly-playground.com",
+			"exclude": "",
+			"group": "New Group",
+			"isFunction": false,
+			"action": {
+				"name": "custom-header",
+				"value": "Value"
+			}
+		}
+	],
+	"receiveHeader": [
+		{
+			"enable": false,
+			"name": "Modify Response Header Prefix",
+			"ruleType": "modifyReceiveHeader",
+			"matchType": "prefix",
+			"pattern": "https://www.google.com",
+			"exclude": "",
+			"group": "Ungrouped",
+			"isFunction": false,
+			"action": {
+				"name": "custom-header",
+				"value": "Value"
+			}
+		}
+	],
+	"receiveBody": []
+}
