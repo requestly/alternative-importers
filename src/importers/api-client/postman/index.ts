@@ -551,8 +551,16 @@ export function convertRequestlyCollectionToPostman(
 ): PostmanCollection {
   const records = requestlyData.records.filter((record) => !record.deleted);
 
+  // Get all collection IDs to check for orphaned collections
+  const existingCollectionIds = new Set(
+    records
+      .filter((record) => record.type === "collection")
+      .map((record) => record.id)
+  );
+
   const rootCollections = records.filter(
-    (record) => record.type === "collection" && !record.collectionId
+    (record) => record.type === "collection" && 
+    (!record.collectionId || !existingCollectionIds.has(record.collectionId))
   );
 
   const hierarchy = buildHierarchy(records);
