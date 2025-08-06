@@ -1,22 +1,61 @@
-interface RequestlyExport {
-  schema_version: string;
-  records: RequestlyRecord[];
+interface RequestlyVariable {
+  id: number;
+  syncValue: string;
+  type: string;
+}
+
+interface RequestlyAuth {
+  currentAuthType: string;
+  authConfigStore: Record<string, any>;
+}
+
+interface RequestlyHeader {
+  id?: number;
+  key: string;
+  value: string;
+  isEnabled?: boolean;
+  type?: string;
+}
+
+interface RequestlyQueryParam {
+  id: number;
+  key: string;
+  value: string;
+  isEnabled: boolean;
+}
+
+interface RequestlyRequest {
+  url: string;
+  method: string;
+  queryParams: RequestlyQueryParam[];
+  headers: RequestlyHeader[];
+  body: string | null;
+  contentType: string;
+}
+
+interface RequestlyScripts {
+  preRequest: string;
+  postResponse: string;
 }
 
 interface RequestlyRecord {
   name: string;
-  type: string;
-  data: any; 
-  collectionId?: string;
+  type: "collection" | "api";
+  data: {
+    variables?: Record<string, RequestlyVariable>;
+    auth?: RequestlyAuth;
+    request?: RequestlyRequest;
+    scripts?: RequestlyScripts;
+  };
+  collectionId: string;
   deleted: boolean;
   description?: string;
   id: string;
 }
 
-interface PostmanExport {
-  info: PostmanInfo;
-  item: PostmanItem[];
-  variable?: PostmanVariable[];
+interface RequestlyExport {
+  schema_version: string;
+  records: RequestlyRecord[];
 }
 
 interface PostmanInfo {
@@ -24,27 +63,66 @@ interface PostmanInfo {
   name: string;
   description?: string;
   schema: string;
-  _exporter_id?: string;
-  _collection_link?: string;
 }
 
-interface PostmanItem {
-  name: string;
-  event?: PostmanEvent[];
-  request: PostmanRequest;
-  response: any[];
+interface PostmanVariable {
+  id: string;
+  key: string;
+  value: string;
+  type: string;
+}
+
+interface PostmanAuth {
+  type: string;
+  [key: string]: any;
+}
+
+interface PostmanHeader {
+  key: string;
+  value: string;
+  type?: string;
+  disabled?: boolean;
+}
+
+interface PostmanQueryParam {
+  key: string;
+  value: string;
   description?: string;
+  disabled?: boolean;
+}
+
+interface PostmanUrl {
+  raw: string;
+  host: string[];
+  path: string[];
+  query?: PostmanQueryParam[];
+  variable?: Array<{
+    key: string;
+    value: string;
+    description?: string;
+  }>;
+}
+
+interface PostmanBody {
+  mode: string;
+  raw?: string;
+  options?: {
+    raw?: {
+      language?: string;
+    };
+  };
+}
+
+interface PostmanScript {
+  id: string;
+  type: string;
+  exec: string[];
+  packages?: Record<string, any>;
 }
 
 interface PostmanEvent {
   listen: string;
   script: PostmanScript;
-}
-
-interface PostmanScript {
-  exec: string[];
-  type: string;
-  packages?: Record<string, any>;
 }
 
 interface PostmanRequest {
@@ -53,246 +131,429 @@ interface PostmanRequest {
   body?: PostmanBody;
   url: PostmanUrl;
   description?: string;
+  auth?: PostmanAuth;
 }
 
-interface PostmanHeader {
-  key: string;
-  value: string;
-  type?: string;
+interface PostmanItem {
+  id: string;
+  name: string;
+  item?: PostmanItem[];
+  request?: PostmanRequest;
+  response?: any[];
+  event?: PostmanEvent[];
+  description?: string;
+  auth?: PostmanAuth;
+  variable?: PostmanVariable[];
 }
 
-interface PostmanBody {
-  mode: string;
-  raw?: string;
-  options?: {
-    raw?: {
-      language: string;
-    };
-  };
+interface PostmanCollection {
+  info: PostmanInfo;
+  item: PostmanItem[];
+  variable?: PostmanVariable[];
+  auth?: PostmanAuth;
+  event?: PostmanEvent[];
 }
 
-interface PostmanUrl {
-  raw: string;
+function convertAuth(requestlyAuth?: RequestlyAuth): PostmanAuth | undefined {
+  if (!requestlyAuth || requestlyAuth.currentAuthType === "INHERIT") {
+    return undefined;
+  }
+
+  const authType = requestlyAuth.currentAuthType;
+  const authConfig = requestlyAuth.authConfigStore[authType];
+
+  switch (authType) {
+    case "BEARER_TOKEN":
+      return {
+        type: "bearer",
+        bearer: [
+          {
+            key: "token",
+            value: authConfig?.bearer || "",
+            type: "string",
+          },
+        ],
+      };
+
+    case "BASIC_AUTH":
+      return {
+        type: "basic",
+        basic: [
+          {
+            key: "username",
+            value: authConfig?.username || "",
+            type: "string",
+          },
+          {
+            key: "password",
+            value: authConfig?.password || "",
+            type: "string",
+          },
+        ],
+      };
+
+    case "API_KEY":
+      return {
+        type: "apikey",
+        apikey: [
+          {
+            key: "key",
+            value: authConfig?.key || "",
+            type: "string",
+          },
+          {
+            key: "value",
+            value: authConfig?.value || "",
+            type: "string",
+          },
+          ...(authConfig?.addTo
+            ? [
+                {
+                  key: "in",
+                  value: authConfig.addTo.toLowerCase(),
+                  type: "string",
+                },
+              ]
+            : []),
+        ],
+      };
+
+    default:
+      return undefined;
+  }
+}
+
+function convertVariables(
+  requestlyVariables?: Record<string, RequestlyVariable>
+): PostmanVariable[] {
+  if (!requestlyVariables) {
+    return [];
+  }
+
+  return Object.entries(requestlyVariables).map(([key, variable]) => ({
+    id: crypto.randomUUID(),
+    key,
+    value: variable.syncValue,
+    type: variable.type === "string" ? "default" : variable.type,
+  }));
+}
+
+function convertScripts(requestlyScripts?: RequestlyScripts): PostmanEvent[] {
+  const events: PostmanEvent[] = [];
+
+  if (requestlyScripts?.preRequest) {
+    const convertedPreRequest = requestlyScripts.preRequest
+      .replace(/\brq\./g, "pm.")
+      .replace(/\brq\b/g, "pm");
+
+    events.push({
+      listen: "prerequest",
+      script: {
+        id: crypto.randomUUID(),
+        type: "text/javascript",
+        exec: convertedPreRequest.split("\n").filter((line) => line.trim()),
+        packages: {},
+      },
+    });
+  }
+
+  if (requestlyScripts?.postResponse) {
+    const convertedPostResponse = requestlyScripts.postResponse
+      .replace(/\brq\./g, "pm.")
+      .replace(/\brq\b/g, "pm");
+
+    events.push({
+      listen: "test",
+      script: {
+        id: crypto.randomUUID(),
+        type: "text/javascript",
+        exec: convertedPostResponse.split("\n").filter((line) => line.trim()),
+        packages: {},
+      },
+    });
+  }
+
+  return events;
+}
+
+/**
+ * Parses a Requestly URL and extracts components for Postman format
+ */
+function parseUrl(url: string): {
   host: string[];
   path: string[];
-  query?: PostmanQueryParam[];
+  variables: Array<{ key: string; value: string; description?: string }>;
+} {
+  try {
+    const pathVariables: Array<{
+      key: string;
+      value: string;
+      description?: string;
+    }> = [];
+    let processedUrl = url;
+
+    const pathVarMatches = url.match(/:([a-zA-Z_][a-zA-Z0-9_]*)/g);
+    if (pathVarMatches) {
+      pathVarMatches.forEach((match) => {
+        const varName = match.substring(1);
+        pathVariables.push({
+          key: varName,
+          value: "",
+          description: `(Required) ${varName}`,
+        });
+      });
+    }
+
+    const [baseUrl] = processedUrl.split("?");
+
+    const cleanUrl = baseUrl.replace(/\{\{[^}]+\}\}/g, "placeholder");
+
+    let host: string[] = [];
+    let path: string[] = [];
+
+    if (cleanUrl.includes("://")) {
+      const urlObj = new URL(cleanUrl);
+      host =
+        urlObj.hostname === "placeholder" ? ["{{url}}"] : [urlObj.hostname];
+      path = urlObj.pathname.split("/").filter(Boolean);
+    } else {
+      if (baseUrl.startsWith("{{")) {
+        host = [baseUrl.split("/")[0]];
+        path = baseUrl.split("/").slice(1).filter(Boolean);
+      } else {
+        const parts = baseUrl.split("/").filter(Boolean);
+        if (parts.length > 0) {
+          host = [parts[0]];
+          path = parts.slice(1);
+        }
+      }
+    }
+
+    return { host, path, variables: pathVariables };
+  } catch (error) {
+    const parts = url.split("/").filter(Boolean);
+    return {
+      host: parts.length > 0 ? [parts[0]] : ["{{url}}"],
+      path: parts.slice(1),
+      variables: [],
+    };
+  }
 }
 
-interface PostmanQueryParam {
-  key: string;
-  value: string;
-}
-
-interface PostmanVariable {
-  key: string;
-  value: string;
-  type: string;
-}
-
-
-export function convertRequestlyToPostman(requestlyExport: RequestlyExport): PostmanExport {
-  if (!requestlyExport || !requestlyExport.records) {
-    throw new Error('Invalid Requestly export: missing records');
+/**
+ * Converts Requestly request to Postman request format
+ */
+function convertRequest(
+  requestlyRecord: RequestlyRecord
+): PostmanRequest | undefined {
+  const requestData = requestlyRecord.data.request;
+  if (!requestData) {
+    return undefined;
   }
 
-  const collections = requestlyExport.records.filter(record => record.type === 'collection');
-  const apis = requestlyExport.records.filter(record => record.type === 'api');
+  const { host, path, variables } = parseUrl(requestData.url);
 
-  if (collections.length === 0) {
-    throw new Error('No collection found in Requestly export');
-  }
+  const [, queryString] = requestData.url.split("?");
+  const urlQueryParams: PostmanQueryParam[] = [];
 
-  const collection = collections[0]; 
-  const collectionData = collection.data;
-
-  
-  const postmanInfo: PostmanInfo = {
-    _postman_id: crypto.randomUUID(),
-    name: collection.name,
-    description: collection.description,
-    schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-  };
-
-  
-  const postmanVariables: PostmanVariable[] = [];
-  if (collectionData.variables) {
-    Object.entries(collectionData.variables).forEach(([key, variable]: [string, any]) => {
-      postmanVariables.push({
+  if (queryString) {
+    const urlParams = new URLSearchParams(queryString);
+    urlParams.forEach((value, key) => {
+      urlQueryParams.push({
         key,
-        value: variable.syncValue,
-        type: variable.type
+        value,
+        disabled: true,
       });
     });
   }
 
-  
-  const allCollectionIds = collections.map(col => col.id);
-  
-  
-  const postmanItems: PostmanItem[] = apis
-    .filter(api => !api.deleted && api.collectionId && allCollectionIds.includes(api.collectionId))
-    .map(api => convertApiToPostmanItem(api));
+  const requestQueryParams: PostmanQueryParam[] = requestData.queryParams.map(
+    (param) => ({
+      key: param.key,
+      value: param.value,
+      disabled: !param.isEnabled,
+    })
+  );
 
-  const postmanExport: PostmanExport = {
-    info: postmanInfo,
-    item: postmanItems
-  };
+  const allQueryParams = [...urlQueryParams, ...requestQueryParams];
 
-  if (postmanVariables.length > 0) {
-    postmanExport.variable = postmanVariables;
-  }
+  const headers: PostmanHeader[] = requestData.headers.map((header) => ({
+    key: header.key,
+    value: header.value,
+    type: header.type || "text",
+    disabled: header.isEnabled === false,
+  }));
 
-  return postmanExport;
-}
-
-function convertApiToPostmanItem(api: RequestlyRecord): PostmanItem {
-  const apiData = api.data;
-  const request = apiData.request;
-
-  
-  const url = parseRequestlyUrl(request.url, request.queryParams || []);
-
-  
-  const headers: PostmanHeader[] = (request.headers || [])
-    .filter((header: any) => header.isEnabled)
-    .map((header: any) => ({
-      key: header.key,
-      value: header.value,
-      type: "text"
-    }));
-
-  
   let body: PostmanBody | undefined;
-  if (request.body && request.body.trim() !== '') {
-    const language = getLanguageFromContentType(request.contentType || 'text/plain');
+  if (requestData.body && requestData.body.trim()) {
+    const isJson =
+      requestData.contentType === "application/json" ||
+      (requestData.body.trim().startsWith("{") &&
+        requestData.body.trim().endsWith("}"));
+
     body = {
       mode: "raw",
-      raw: request.body,
-      options: {
-        raw: {
-          language
-        }
-      }
+      raw: requestData.body,
+      ...(isJson && {
+        options: {
+          raw: {
+            language: "json",
+          },
+        },
+      }),
     };
   }
 
-  
-  const events: PostmanEvent[] = [];
-  if (apiData.scripts) {
-    if (apiData.scripts.preRequest && apiData.scripts.preRequest.trim() !== '') {
-      events.push({
-        listen: "prerequest",
-        script: {
-          exec: convertRequestlyScriptToPostman(apiData.scripts.preRequest),
-          type: "text/javascript",
-          packages: {}
-        }
-      });
-    }
+  const postmanUrl: PostmanUrl = {
+    raw: requestData.url,
+    host,
+    path,
+    ...(allQueryParams.length > 0 && { query: allQueryParams }),
+    ...(variables.length > 0 && { variable: variables }),
+  };
 
-    if (apiData.scripts.postResponse && apiData.scripts.postResponse.trim() !== '') {
-      events.push({
-        listen: "test",
-        script: {
-          exec: convertRequestlyScriptToPostman(apiData.scripts.postResponse),
-          type: "text/javascript",
-          packages: {}
-        }
-      });
-    }
-  }
-
-  const postmanRequest: PostmanRequest = {
-    method: request.method,
+  return {
+    method: requestData.method,
     header: headers,
-    url
+    ...(body && { body }),
+    url: postmanUrl,
+    ...(requestlyRecord.description && {
+      description: requestlyRecord.description,
+    }),
+    ...(requestlyRecord.data.auth && {
+      auth: convertAuth(requestlyRecord.data.auth),
+    }),
   };
-
-  if (body) {
-    postmanRequest.body = body;
-  }
-
-  const postmanItem: PostmanItem = {
-    name: api.name,
-    request: postmanRequest,
-    response: []
-  };
-
-  if (events.length > 0) {
-    postmanItem.event = events;
-  }
-
-  return postmanItem;
 }
 
-function parseRequestlyUrl(urlString: string, queryParams: any[] = []): PostmanUrl {
-  try {
-    
-    const url = new URL(urlString.replace(/\{\{[^}]+\}\}/g, 'http://placeholder'));
-    
-    const hostParts = urlString.includes('{{') 
-      ? [urlString.split('/')[0]] 
-      : url.hostname.split('.');
+/**
+ * Builds a hierarchical structure from flat Requestly records
+ */
+function buildHierarchy(
+  records: RequestlyRecord[]
+): Map<string, RequestlyRecord[]> {
+  const hierarchy = new Map<string, RequestlyRecord[]>();
 
-    const pathParts = url.pathname.split('/').filter(part => part !== '');
+  records.forEach((record) => {
+    const parentId = record.collectionId || "root";
+    if (!hierarchy.has(parentId)) {
+      hierarchy.set(parentId, []);
+    }
+    hierarchy.get(parentId)!.push(record);
+  });
 
-    
-    const query: PostmanQueryParam[] = queryParams
-      .filter((param: any) => param && param.isEnabled)
-      .map((param: any) => ({
-        key: param.key,
-        value: param.value
-      }));
+  return hierarchy;
+}
 
-    const postmanUrl: PostmanUrl = {
-      raw: urlString,
-      host: hostParts,
-      path: pathParts
+/**
+ * Converts records to Postman items recursively
+ */
+function convertToPostmanItems(
+  records: RequestlyRecord[],
+  hierarchy: Map<string, RequestlyRecord[]>
+): PostmanItem[] {
+  return records.map((record) => {
+    const item: PostmanItem = {
+      id: crypto.randomUUID(),
+      name: record.name,
+      ...(record.description && { description: record.description }),
     };
 
-    if (query.length > 0) {
-      postmanUrl.query = query;
+    if (record.type === "collection") {
+      const children = hierarchy.get(record.id) || [];
+      item.item = convertToPostmanItems(children, hierarchy);
+
+      if (record.data.auth) {
+        item.auth = convertAuth(record.data.auth);
+      }
+
+      if (record.data.variables) {
+        item.variable = convertVariables(record.data.variables);
+      }
+
+      if (record.data.scripts) {
+        item.event = convertScripts(record.data.scripts);
+      }
+    } else if (record.type === "api") {
+      item.request = convertRequest(record);
+      item.response = [];
+
+      if (record.data.scripts) {
+        item.event = convertScripts(record.data.scripts);
+      }
     }
 
-    return postmanUrl;
-  } catch (error) {
-    
+    return item;
+  });
+}
+
+/**
+ * Main function to convert Requestly export to Postman collection
+ */
+export function convertRequestlyToPostman(
+  requestlyData: RequestlyExport
+): PostmanCollection {
+  const records = requestlyData.records.filter((record) => !record.deleted);
+
+  const rootCollections = records.filter(
+    (record) => record.type === "collection" && !record.collectionId
+  );
+
+  const hierarchy = buildHierarchy(records);
+
+  const mainCollection = rootCollections[0];
+  const collectionName = mainCollection?.name || "Requestly Collection";
+  const collectionDescription = mainCollection?.description;
+
+  let allItems: PostmanItem[] = [];
+
+  if (mainCollection) {
+    const children = hierarchy.get(mainCollection.id) || [];
+    allItems = convertToPostmanItems(children, hierarchy);
+
+    const mainCollectionAuth = mainCollection.data.auth
+      ? convertAuth(mainCollection.data.auth)
+      : undefined;
+    const mainCollectionVariables = mainCollection.data.variables
+      ? convertVariables(mainCollection.data.variables)
+      : [];
+    const mainCollectionEvents = mainCollection.data.scripts
+      ? convertScripts(mainCollection.data.scripts)
+      : [];
+
     return {
-      raw: urlString,
-      host: [urlString],
-      path: []
+      info: {
+        _postman_id: crypto.randomUUID(),
+        name: collectionName,
+        ...(collectionDescription && { description: collectionDescription }),
+        schema:
+          "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+      },
+      item: allItems,
+      ...(mainCollectionVariables.length > 0 && {
+        variable: mainCollectionVariables,
+      }),
+      ...(mainCollectionAuth && { auth: mainCollectionAuth }),
+      ...(mainCollectionEvents.length > 0 && { event: mainCollectionEvents }),
+    };
+  } else {
+    allItems = convertToPostmanItems(records, hierarchy);
+
+    return {
+      info: {
+        _postman_id: crypto.randomUUID(),
+        name: collectionName,
+        schema:
+          "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+      },
+      item: allItems,
     };
   }
 }
 
-function getLanguageFromContentType(contentType: string): string {
-  switch (contentType.toLowerCase()) {
-    case 'application/json':
-      return 'json';
-    case 'application/xml':
-    case 'text/xml':
-      return 'xml';
-    case 'text/html':
-      return 'html';
-    case 'text/javascript':
-      return 'javascript';
-    default:
-      return 'text';
-  }
-}
-
-function convertRequestlyScriptToPostman(requestlyScript: string): string[] {
-  
-  let convertedScript = requestlyScript
-    .replace(/rq\./g, 'pm.')
-    .replace(/rq\.response\./g, 'pm.response.')
-    .replace(/rq\.request\./g, 'pm.request.')
-    .replace(/rq\.test\(/g, 'pm.test(')
-    .replace(/rq\.expect\(/g, 'pm.expect(');
-
-  
-  return convertedScript
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line !== '');
-}
+export type {
+  RequestlyExport,
+  PostmanCollection,
+  RequestlyRecord,
+  PostmanItem,
+};
