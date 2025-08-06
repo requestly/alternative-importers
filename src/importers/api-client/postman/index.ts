@@ -53,9 +53,17 @@ interface RequestlyRecord {
   id: string;
 }
 
+interface RequestlyEnvironment {
+  id: string;
+  name: string;
+  variables: Record<string, RequestlyVariable>;
+  isGlobal: boolean;
+}
+
 interface RequestlyExport {
   schema_version: string;
   records: RequestlyRecord[];
+  environments?: RequestlyEnvironment[];
 }
 
 interface PostmanInfo {
@@ -144,6 +152,20 @@ interface PostmanItem {
   description?: string;
   auth?: PostmanAuth;
   variable?: PostmanVariable[];
+}
+
+interface PostmanEnvironment {
+  id: string;
+  name: string;
+  values: Array<{
+    key: string;
+    value: string;
+    type: string;
+    enabled: boolean;
+  }>;
+  _postman_variable_scope: string;
+  _postman_exported_at?: string;
+  _postman_exported_using?: string;
 }
 
 interface PostmanCollection {
@@ -274,6 +296,40 @@ function convertScripts(requestlyScripts?: RequestlyScripts): PostmanEvent[] {
   }
 
   return events;
+}
+
+/**
+ * Converts Requestly environment to Postman environment format
+ */
+function convertEnvironment(requestlyEnv: RequestlyEnvironment): PostmanEnvironment {
+  const values = Object.entries(requestlyEnv.variables).map(([key, variable]) => ({
+    key,
+    value: variable.syncValue,
+    type: variable.type === "secret" ? "secret" : "default",
+    enabled: true,
+  }));
+
+  return {
+    id: crypto.randomUUID(),
+    name: requestlyEnv.name,
+    values,
+    _postman_variable_scope: "environment",
+    _postman_exported_at: new Date().toISOString(),
+    _postman_exported_using: "Requestly Alternative Importer",
+  };
+}
+
+/**
+ * Converts Requestly environments to Postman environment format
+ */
+export function convertRequestlyEnvironmentsToPostman(
+  requestlyData: RequestlyExport
+): PostmanEnvironment[] {
+  if (!requestlyData.environments || requestlyData.environments.length === 0) {
+    return [];
+  }
+
+  return requestlyData.environments.map(convertEnvironment);
 }
 
 /**
@@ -490,7 +546,7 @@ function convertToPostmanItems(
 /**
  * Main function to convert Requestly export to Postman collection
  */
-export function convertRequestlyToPostman(
+export function convertRequestlyCollectionToPostman(
   requestlyData: RequestlyExport
 ): PostmanCollection {
   const records = requestlyData.records.filter((record) => !record.deleted);
@@ -502,7 +558,7 @@ export function convertRequestlyToPostman(
   const hierarchy = buildHierarchy(records);
 
   const mainCollection = rootCollections[0];
-  const collectionName = mainCollection?.name || "Requestly Collection";
+  const collectionName = mainCollection?.name || (records.length === 0 ? "Imported Collection" : "Requestly Collection");
   const collectionDescription = mainCollection?.description;
 
   let allItems: PostmanItem[] = [];
@@ -553,7 +609,9 @@ export function convertRequestlyToPostman(
 
 export type {
   RequestlyExport,
+  RequestlyEnvironment,
   PostmanCollection,
+  PostmanEnvironment,
   RequestlyRecord,
   PostmanItem,
 };
