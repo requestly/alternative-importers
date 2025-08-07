@@ -1,0 +1,322 @@
+{
+	"info": {
+		"_postman_id": "3b1f2177-6436-48e4-b17f-5b739dc07377",
+		"name": "Accounts",
+		"description": "An Account at the Intergalactic Bank allows you to store funds. Account endpoints return information about accounts and account holders at the Intergalactic Bank. They should not return information about transactions. Instead, all transaction information should be accessed by requests in the `Transactions` folder.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "47058916",
+		"_collection_link": "https://technical-geoscientist-69574487-6917810.postman.co/workspace/Jace's-Workspace~a7533417-a590-4f82-8db4-99980bc5556e/collection/47058916-3b1f2177-6436-48e4-b17f-5b739dc07377?action=share&source=collection_link&creator=47058916"
+	},
+	"item": [
+		{
+			"name": "Create New Account",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// Test the structure of the successful response",
+							"pm.test(\"Response body structure is valid\", function () {",
+							"    var responseData = pm.response.json();",
+							"    pm.expect(responseData).to.have.property('account');",
+							"    pm.expect(responseData.account).to.be.an('object').that.has.property('id');",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "X-www-form-urlencoded",
+							"value": "Value",
+							"type": "text"
+						},
+						{
+							"key": "Another KEY ",
+							"value": "value",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/accounts",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"accounts"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Account",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							"var response = pm.response.text()",
+							"// Test the response body structure",
+							"pm.test(\"Response body to be empty\", function () {",
+							"    pm.expect(response).to.be.empty;",
+							"});"
+						],
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "{{url}}/api/v1/accounts/:id",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"accounts",
+						":id"
+					],
+					"variable": [
+						{
+							"key": "id",
+							"value": "",
+							"description": "(Required) id"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Account",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							"// Test the response body structure and values",
+							"pm.test(\"Response body structure is valid\", function () {",
+							"    var responseJSON = pm.response.json();",
+							"    pm.expect(responseJSON).to.have.property('account').that.is.an('object');",
+							"    pm.expect(responseJSON.account).to.have.property('id').that.is.a('number');",
+							"    pm.expect(responseJSON.account).to.have.property('owner').that.is.a('string');",
+							"    pm.expect(responseJSON.account).to.have.property('balance').that.is.a('number');",
+							"    pm.expect(responseJSON.account).to.have.property('currency').that.is.a('string');",
+							"});"
+						],
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url}}/api/v1/accounts/:id",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"accounts",
+						":id"
+					],
+					"variable": [
+						{
+							"key": "id",
+							"value": "",
+							"description": "(Required) id"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Head Account",
+			"request": {
+				"method": "HEAD",
+				"header": [],
+				"url": {
+					"raw": "app.requestly.io/echo",
+					"host": [
+						"app",
+						"requestly",
+						"io"
+					],
+					"path": [
+						"echo"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "List Accounts",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							"// Test to check the structure of the successful response",
+							"pm.test(\"Response body structure is valid\", function () {",
+							"    var responseJSON = pm.response.json();",
+							"    pm.expect(responseJSON).to.have.property('accounts').that.is.an('array');",
+							"    if (responseJSON.accounts.length > 0) {",
+							"        responseJSON.accounts.forEach(function(account) {",
+							"            pm.expect(account).to.have.property('id');",
+							"            pm.expect(account).to.have.property('owner');",
+							"            pm.expect(account).to.have.property('createdAt');",
+							"            pm.expect(account).to.have.property('balance');",
+							"            pm.expect(account).to.have.property('currency');",
+							"        });",
+							"    }",
+							"});"
+						],
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url}}/api/v1/accounts?owner=Nova Newman&createdAt=2023-04-10",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"accounts"
+					],
+					"query": [
+						{
+							"key": "createdAt",
+							"value": "2023-04-10",
+							"disabled": true
+						},
+						{
+							"key": "owner",
+							"value": "Nova Newman"
+						},
+						{
+							"key": "createdAt",
+							"value": "2023-04-10"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Put Accounts",
+			"request": {
+				"method": "PUT",
+				"header": [],
+				"url": {
+					"raw": "app.requestly.io/echo",
+					"host": [
+						"app",
+						"requestly",
+						"io"
+					],
+					"path": [
+						"echo"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Update Account",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							"// Test to check the structure of the successful response",
+							"pm.test(\"Successful response has the correct structure\", function () {",
+							"    var responseData = pm.response.json();",
+							"    // Check if the response contains the account object",
+							"    pm.expect(responseData).to.have.property('account');",
+							"    pm.expect(responseData.account).to.be.an('object');",
+							"    // Check the properties of the account object",
+							"    pm.expect(responseData.account).to.have.property('id');",
+							"    pm.expect(responseData.account).to.have.property('owner');",
+							"    pm.expect(responseData.account).to.have.property('balance');",
+							"    pm.expect(responseData.account).to.have.property('currency');",
+							"    pm.expect(responseData.account).to.have.property('createdAt');",
+							"});"
+						],
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "PATCH",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"owner\": \"Paul Stars\",\n \t\"balance\" : 57000,\n    \"currency\" : \"COSMIC_COINS\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{url}}/api/v1/accounts/:id",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"accounts",
+						":id"
+					],
+					"variable": [
+						{
+							"key": "id",
+							"value": "",
+							"description": "(Required) id"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0.0",
+  "environments": [
+    {
+      "id": "2DcJBS6tJz3vwzNvaOPx",
+      "name": "REST Environment",
+      "variables": {
+        "Variable": {
+          "id": 1,
+          "syncValue": "thisissecret",
+          "type": "secret"
+        },
+        "base_url": {
+          "id": 0,
+          "syncValue": "https://app.requestly.io",
+          "type": "string"
+        }
+      },
+      "isGlobal": false
+    }
+  ]
+}
