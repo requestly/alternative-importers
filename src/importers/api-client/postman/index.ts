@@ -1,3 +1,5 @@
+import JSZip from 'jszip';
+
 interface RequestlyVariable {
   id: number;
   syncValue: string;
@@ -24,13 +26,42 @@ interface RequestlyQueryParam {
   isEnabled: boolean;
 }
 
+interface RequestlyFormField {
+  id: number;
+  key: string;
+  value: string | Array<{
+    id: string;
+    name: string;
+    path: string;
+    size: number;
+    source: string;
+  }>;
+  isEnabled: boolean;
+  type?: "text" | "file"; // Optional since many form fields don't have this
+}
+
+// For simpler form fields (like URL-encoded) that don't have type
+interface RequestlySimpleFormField {
+  id: number;
+  key: string;
+  value: string;
+  isEnabled: boolean;
+}
+
+interface RequestlyBodyContainer {
+  text: string;
+  form: RequestlyFormField[];
+  multipartForm: RequestlyFormField[];
+}
+
 interface RequestlyRequest {
   url: string;
   method: string;
   queryParams: RequestlyQueryParam[];
   headers: RequestlyHeader[];
-  body: string | null;
+  body: string | RequestlyFormField[] | RequestlySimpleFormField[] | null;
   contentType: string;
+  bodyContainer?: RequestlyBodyContainer;
 }
 
 interface RequestlyScripts {
@@ -111,9 +142,20 @@ interface PostmanUrl {
   }>;
 }
 
+interface PostmanFormField {
+  key: string;
+  value?: string;
+  description?: string;
+  type?: "text" | "file";
+  disabled?: boolean;
+  src?: string;
+}
+
 interface PostmanBody {
-  mode: string;
+  mode: "raw" | "urlencoded" | "formdata";
   raw?: string;
+  urlencoded?: PostmanFormField[];
+  formdata?: PostmanFormField[];
   options?: {
     raw?: {
       language?: string;
@@ -346,7 +388,6 @@ function parseUrl(url: string): {
       value: string;
       description?: string;
     }> = [];
-    let processedUrl = url;
 
     const pathVarMatches = url.match(/:([a-zA-Z_][a-zA-Z0-9_]*)/g);
     if (pathVarMatches) {
@@ -360,7 +401,7 @@ function parseUrl(url: string): {
       });
     }
 
-    const [baseUrl] = processedUrl.split("?");
+    const [baseUrl] = url.split("?");
 
     const cleanUrl = baseUrl.replace(/\{\{[^}]+\}\}/g, "placeholder");
 
@@ -441,23 +482,65 @@ function convertRequest(
   }));
 
   let body: PostmanBody | undefined;
-  if (requestData.body && requestData.body.trim()) {
-    const isJson =
-      requestData.contentType === "application/json" ||
-      (requestData.body.trim().startsWith("{") &&
-        requestData.body.trim().endsWith("}"));
+  
+  // Handle different body types based on content type and body structure
+  if (requestData.body !== null && requestData.body !== undefined) {
+    if (requestData.contentType === "multipart/form-data") {
+      // Handle multipart form data
+      const formFields = Array.isArray(requestData.body) ? requestData.body : requestData.bodyContainer?.multipartForm || [];
+      
+      body = {
+        mode: "formdata",
+        formdata: formFields.map((field) => {
+          // Determine field type: if value is an array, it's a file field, otherwise text
+          const fieldType = ('type' in field && field.type) || (Array.isArray(field.value) ? "file" : "text");
+          
+          const postmanField: PostmanFormField = {
+            key: field.key,
+            disabled: !field.isEnabled,
+            type: fieldType,
+          };
 
-    body = {
-      mode: "raw",
-      raw: requestData.body,
-      ...(isJson && {
+          if (fieldType === "file" && Array.isArray(field.value)) {
+            // Handle file fields
+            const fileInfo = field.value[0]; // Take the first file
+            postmanField.src = fileInfo?.path || "";
+            postmanField.value = fileInfo?.name || "";
+          } else {
+            // Handle text fields
+            postmanField.value = typeof field.value === "string" ? field.value : "";
+          }
+
+          return postmanField;
+        }),
+      };
+    } else if (requestData.contentType === "application/x-www-form-urlencoded") {
+      // Handle URL encoded form data - these are always simple text fields
+      const formFields = Array.isArray(requestData.body) ? requestData.body : [];
+      
+      body = {
+        mode: "urlencoded",
+        urlencoded: formFields.map((field) => ({
+          key: field.key,
+          value: typeof field.value === "string" ? field.value : String(field.value),
+          disabled: !field.isEnabled,
+          type: "text",
+        })),
+      };
+    } else if (typeof requestData.body === "string" && requestData.body.trim()) {
+      // Handle raw body (JSON or raw text)
+      let language = requestData.contentType === "application/json" ? "json" : "text";
+
+      body = {
+        mode: "raw",
+        raw: requestData.body,
         options: {
           raw: {
-            language: "json",
+            language,
           },
         },
-      }),
-    };
+      };
+    }
   }
 
   const postmanUrl: PostmanUrl = {
@@ -544,11 +627,100 @@ function convertToPostmanItems(
 }
 
 /**
- * Main function to convert Requestly export to Postman collection
+ * Creates a single Postman collection from a root collection
+ */
+function createCollectionFromRoot(
+  rootCollection: RequestlyRecord,
+  hierarchy: Map<string, RequestlyRecord[]>
+): PostmanCollection {
+  const children = hierarchy.get(rootCollection.id) || [];
+  const allItems = convertToPostmanItems(children, hierarchy);
+
+  const collectionAuth = rootCollection.data.auth
+    ? convertAuth(rootCollection.data.auth)
+    : undefined;
+  const collectionVariables = rootCollection.data.variables
+    ? convertVariables(rootCollection.data.variables)
+    : [];
+  const collectionEvents = rootCollection.data.scripts
+    ? convertScripts(rootCollection.data.scripts)
+    : [];
+
+  return {
+    info: {
+      _postman_id: crypto.randomUUID(),
+      name: rootCollection.name,
+      ...(rootCollection.description && { description: rootCollection.description }),
+      schema:
+        "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    },
+    item: allItems,
+    ...(collectionVariables.length > 0 && {
+      variable: collectionVariables,
+    }),
+    ...(collectionAuth && { auth: collectionAuth }),
+    ...(collectionEvents.length > 0 && { event: collectionEvents }),
+  };
+}
+
+/**
+ * Creates a ZIP file containing multiple JSON files using JSZip
+ */
+async function createZipFile(collections: { name: string; data: PostmanCollection }[]): Promise<Uint8Array> {
+  const zip = new JSZip();
+  
+  // Create the archive.json file with collection metadata
+  const archiveData = {
+    collection: collections.reduce((acc, collection) => {
+      acc[collection.data.info._postman_id] = true;
+      return acc;
+    }, {} as Record<string, boolean>)
+  };
+  
+  zip.file('archive.json', JSON.stringify(archiveData, null, 2));
+  
+  // Create collection folder and add each collection as a JSON file
+  const collectionFolder = zip.folder('collection');
+  
+  collections.forEach(collection => {
+    const fileName = `${collection.data.info._postman_id}.json`;
+    const jsonContent = JSON.stringify(collection.data, null, 2);
+    collectionFolder!.file(fileName, jsonContent);
+  });
+  
+  // Generate the ZIP file as Uint8Array
+  return zip.generateAsync({
+    type: 'uint8array',
+    compression: 'DEFLATE',
+    compressionOptions: {
+      level: 6
+    }
+  });
+}
+
+/**
+ * Export result for multiple collections
+ */
+interface MultipleCollectionsResult {
+  type: 'multiple';
+  zipData: Uint8Array;
+  collections: { name: string; data: PostmanCollection }[];
+}
+
+/**
+ * Export result for single collection
+ */
+interface SingleCollectionResult {
+  type: 'single';
+  collection: PostmanCollection;
+}
+
+/**
+ * Main function to convert Requestly export to Postman collection(s)
  */
 export function convertRequestlyCollectionToPostman(
   requestlyData: RequestlyExport
-): PostmanCollection {
+): SingleCollectionResult | Promise<MultipleCollectionsResult> {
   const records = requestlyData.records.filter((record) => !record.deleted);
 
   // Get all collection IDs to check for orphaned collections
@@ -565,6 +737,21 @@ export function convertRequestlyCollectionToPostman(
 
   const hierarchy = buildHierarchy(records);
 
+  // If there are multiple root collections, create separate collections and zip them
+  if (rootCollections.length > 1) {
+    const collections = rootCollections.map(rootCollection => ({
+      name: rootCollection.name,
+      data: createCollectionFromRoot(rootCollection, hierarchy)
+    }));
+
+    return createZipFile(collections).then(zipData => ({
+      type: 'multiple' as const,
+      zipData,
+      collections
+    }));
+  }
+
+  // Single collection case (existing behavior)
   const mainCollection = rootCollections[0];
   const collectionName = mainCollection?.name || (records.length === 0 ? "Imported Collection" : "Requestly Collection");
   const collectionDescription = mainCollection?.description;
@@ -586,31 +773,37 @@ export function convertRequestlyCollectionToPostman(
       : [];
 
     return {
-      info: {
-        _postman_id: crypto.randomUUID(),
-        name: collectionName,
-        ...(collectionDescription && { description: collectionDescription }),
-        schema:
-          "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-      },
-      item: allItems,
-      ...(mainCollectionVariables.length > 0 && {
-        variable: mainCollectionVariables,
-      }),
-      ...(mainCollectionAuth && { auth: mainCollectionAuth }),
-      ...(mainCollectionEvents.length > 0 && { event: mainCollectionEvents }),
+      type: 'single',
+      collection: {
+        info: {
+          _postman_id: crypto.randomUUID(),
+          name: collectionName,
+          ...(collectionDescription && { description: collectionDescription }),
+          schema:
+            "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        },
+        item: allItems,
+        ...(mainCollectionVariables.length > 0 && {
+          variable: mainCollectionVariables,
+        }),
+        ...(mainCollectionAuth && { auth: mainCollectionAuth }),
+        ...(mainCollectionEvents.length > 0 && { event: mainCollectionEvents }),
+      }
     };
   } else {
     allItems = convertToPostmanItems(records, hierarchy);
 
     return {
-      info: {
-        _postman_id: crypto.randomUUID(),
-        name: collectionName,
-        schema:
-          "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-      },
-      item: allItems,
+      type: 'single',
+      collection: {
+        info: {
+          _postman_id: crypto.randomUUID(),
+          name: collectionName,
+          schema:
+            "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        },
+        item: allItems,
+      }
     };
   }
 }
@@ -622,4 +815,6 @@ export type {
   PostmanEnvironment,
   RequestlyRecord,
   PostmanItem,
+  MultipleCollectionsResult,
+  SingleCollectionResult,
 };
