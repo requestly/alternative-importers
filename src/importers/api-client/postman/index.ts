@@ -135,6 +135,7 @@ interface PostmanUrl {
   host: string[];
   path: string[];
   query?: PostmanQueryParam[];
+  protocol: 'http' | 'https';
   variable?: Array<{
     key: string;
     value: string;
@@ -380,6 +381,7 @@ export function convertRequestlyEnvironmentsToPostman(
 function parseUrl(url: string): {
   host: string[];
   path: string[];
+  protocol: 'http' | 'https';
   variables: Array<{ key: string; value: string; description?: string }>;
 } {
   try {
@@ -404,34 +406,39 @@ function parseUrl(url: string): {
     const [baseUrl] = url.split("?");
 
     const cleanUrl = baseUrl.replace(/\{\{[^}]+\}\}/g, "placeholder");
-
     let host: string[] = [];
     let path: string[] = [];
+    let protocol: 'http' | 'https' = 'https'; // Default to https
 
     if (cleanUrl.includes("://")) {
       const urlObj = new URL(cleanUrl);
-      host =
-        urlObj.hostname === "placeholder" ? ["{{url}}"] : [urlObj.hostname];
+      protocol = urlObj.protocol.replace(':', '') as 'http' | 'https';
+      if (urlObj.hostname === "placeholder") {
+      host = ["{{url}}"];
+      } else {
+      host = urlObj.hostname.split(".");
+      }
       path = urlObj.pathname.split("/").filter(Boolean);
     } else {
       if (baseUrl.startsWith("{{")) {
-        host = [baseUrl.split("/")[0]];
-        path = baseUrl.split("/").slice(1).filter(Boolean);
+      host = [baseUrl.split("/")[0]];
+      path = baseUrl.split("/").slice(1).filter(Boolean);
       } else {
-        const parts = baseUrl.split("/").filter(Boolean);
-        if (parts.length > 0) {
-          host = [parts[0]];
-          path = parts.slice(1);
-        }
+      const parts = baseUrl.split("/").filter(Boolean);
+      if (parts.length > 0) {
+        host = parts[0].split(".");
+        path = parts.slice(1);
+      }
       }
     }
 
-    return { host, path, variables: pathVariables };
+    return { host, path, protocol, variables: pathVariables };
   } catch (error) {
     const parts = url.split("/").filter(Boolean);
     return {
       host: parts.length > 0 ? [parts[0]] : ["{{url}}"],
       path: parts.slice(1),
+      protocol: 'https', // Default to https
       variables: [],
     };
   }
@@ -448,7 +455,7 @@ function convertRequest(
     return undefined;
   }
 
-  const { host, path, variables } = parseUrl(requestData.url);
+  const { host, path, protocol, variables } = parseUrl(requestData.url);
 
   const [, queryString] = requestData.url.split("?");
   const urlQueryParams: PostmanQueryParam[] = [];
@@ -547,6 +554,7 @@ function convertRequest(
     raw: requestData.url,
     host,
     path,
+    protocol,
     ...(allQueryParams.length > 0 && { query: allQueryParams }),
     ...(variables.length > 0 && { variable: variables }),
   };
