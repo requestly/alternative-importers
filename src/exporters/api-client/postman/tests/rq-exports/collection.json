@@ -1,0 +1,329 @@
+{
+  "schema_version": "1.0.0",
+  "records": [
+    {
+      "name": "REST API basics: CRUD, test & variable",
+      "type": "collection",
+      "data": {
+        "variables": {
+          "id": {
+            "id": 0,
+            "syncValue": "1",
+            "type": "string"
+          },
+          "base_url": {
+            "id": 1,
+            "syncValue": "https://app.requestly.io/echo",
+            "type": "string"
+          }
+        },
+        "auth": {
+          "currentAuthType": "INHERIT",
+          "authConfigStore": {}
+        }
+      },
+      "collectionId": "",
+      "deleted": false,
+      "description": "# 🚀 Get started here\n\nThis template guides you through CRUD operations (GET, POST, PUT, DELETE), variables, and tests.\n\n## 🔖 **How to use this template**\n\n#### **Step 1: Send requests**\n\nRESTful APIs allow you to perform CRUD operations using the POST, GET, PUT, and DELETE HTTP methods.\n\nThis collection contains each of these [request](https://learning.postman.com/docs/sending-requests/requests/) types. Open each request and click \"Send\" to see what happens.\n\n#### **Step 2: View responses**\n\nObserve the response tab for status code (200 OK), response time, and size.\n\n#### **Step 3: Send new Body data**\n\nUpdate or add new data in \"Body\" in the POST request. Typically, Body data is also used in PUT request.\n\n```\n{\n    \"name\": \"Add your name in the body\"\n}\n\n ```\n\n#### **Step 4: Update the variable**\n\nVariables enable you to store and reuse values in Postman. We have created a [variable](https://learning.postman.com/docs/sending-requests/variables/) called `base_url` with the sample request [https://postman-api-learner.glitch.me](https://postman-api-learner.glitch.me). Replace it with your API endpoint to customize this collection.\n\n#### **Step 5: Add tests in the \"Scripts\" tab**\n\nAdding tests to your requests can help you confirm that your API is working as expected. You can write test scripts in JavaScript and view the output in the \"Test Results\" tab.\n\n<img src=\"https://content.pstmn.io/fa30ea0a-373d-4545-a668-e7b283cca343/aW1hZ2UucG5n\" alt=\"\" height=\"1530\" width=\"2162\">\n\n## 💪 Pro tips\n\n- Use folders to group related requests and organize the collection.\n    \n- Add more [scripts](https://learning.postman.com/docs/writing-scripts/intro-to-scripts/) to verify if the API works as expected and execute workflows.\n    \n\n## 💡Related templates\n\n[API testing basics](https://go.postman.co/redirect/workspace?type=personal&collectionTemplateId=e9a37a28-055b-49cd-8c7e-97494a21eb54&sourceTemplateId=ddb19591-3097-41cf-82af-c84273e56719)  \n[API documentation](https://go.postman.co/redirect/workspace?type=personal&collectionTemplateId=e9c28f47-1253-44af-a2f3-20dce4da1f18&sourceTemplateId=ddb19591-3097-41cf-82af-c84273e56719)  \n[Authorization methods](https://go.postman.co/redirect/workspace?type=personal&collectionTemplateId=31a9a6ed-4cdf-4ced-984c-d12c9aec1c27&sourceTemplateId=ddb19591-3097-41cf-82af-c84273e56719)",
+      "id": "A8p7HEh0QaaVOZrffAHN"
+    },
+    {
+      "name": "Delete data",
+      "type": "api",
+      "data": {
+        "type": "http",
+        "request": {
+          "url": "{{base_url}}",
+          "method": "DELETE",
+          "queryParams": [],
+          "headers": [],
+          "body": null,
+          "contentType": "text/plain"
+        },
+        "auth": {
+          "currentAuthType": "INHERIT",
+          "authConfigStore": {}
+        },
+        "scripts": {
+          "preRequest": "",
+          "postResponse": "rq.test(\"Successful DELETE request\", function () {\n    rq.expect(rq.response.code).to.be.oneOf([200, 202, 204]);\n});"
+        }
+      },
+      "collectionId": "A8p7HEh0QaaVOZrffAHN",
+      "deleted": false,
+      "id": "lwHX7fdlebTJQz40mAWk"
+    },
+    {
+      "name": "Get data",
+      "type": "api",
+      "data": {
+        "type": "http",
+        "request": {
+          "url": "{{base_url}}",
+          "method": "GET",
+          "queryParams": [],
+          "headers": [],
+          "body": null,
+          "contentType": "text/plain"
+        },
+        "auth": {
+          "currentAuthType": "INHERIT",
+          "authConfigStore": {}
+        },
+        "scripts": {
+          "preRequest": "",
+          "postResponse": "rq.test(\"Status code is 200\", function () {\n    rq.response.to.have.status(200);\n});"
+        }
+      },
+      "collectionId": "A8p7HEh0QaaVOZrffAHN",
+      "deleted": false,
+      "id": "Ln18QUZhHAlvySccYOro"
+    },
+    {
+      "name": "Post data",
+      "type": "api",
+      "data": {
+        "type": "http",
+        "request": {
+          "url": "{{base_url}}",
+          "method": "POST",
+          "queryParams": [],
+          "headers": [
+            {
+              "id": 0,
+              "key": "Content-Type",
+              "value": "application/json",
+              "isEnabled": true
+            }
+          ],
+          "body": "{\n\t\"name\": \"Add your name in the body\"\n}",
+          "contentType": "application/json"
+        },
+        "auth": {
+          "currentAuthType": "INHERIT",
+          "authConfigStore": {}
+        },
+        "scripts": {
+          "preRequest": "",
+          "postResponse": "rq.test(\"Successful POST request\", function () {\n    rq.expect(rq.response.code).to.be.oneOf([200, 201]);\n});"
+        }
+      },
+      "collectionId": "A8p7HEh0QaaVOZrffAHN",
+      "deleted": false,
+      "id": "SaZgTrTn7BGdo8fjo1NU"
+    },
+    {
+      "name": "Update data",
+      "type": "api",
+      "data": {
+        "type": "http",
+        "request": {
+          "url": "{{base_url}}",
+          "method": "PUT",
+          "queryParams": [],
+          "headers": [
+            {
+              "id": 0,
+              "key": "Content-Type",
+              "value": "application/json",
+              "isEnabled": true
+            }
+          ],
+          "body": "{\n\t\"name\": \"Add your name in the body\"\n}",
+          "contentType": "application/json"
+        },
+        "auth": {
+          "currentAuthType": "INHERIT",
+          "authConfigStore": {}
+        },
+        "scripts": {
+          "preRequest": "",
+          "postResponse": "rq.test(\"Successful PUT request\", function () {\n    rq.expect(rq.response.code).to.be.oneOf([200, 201, 204]);\n});"
+        }
+      },
+      "collectionId": "A8p7HEh0QaaVOZrffAHN",
+      "deleted": false,
+      "id": "mS1VIneZB8JDkSMheuHX"
+    },
+    {
+      "name": "Request Body Types",
+      "type": "collection",
+      "data": {
+        "variables": {},
+        "auth": {
+          "currentAuthType": "INHERIT",
+          "authConfigStore": {}
+        }
+      },
+      "collectionId": "A8p7HEh0QaaVOZrffAHN",
+      "deleted": false,
+      "description": "",
+      "id": "t4KSDNQvSWHpew6JUHKH"
+    },
+    {
+      "name": "Post Form Data",
+      "type": "api",
+      "data": {
+        "type": "http",
+        "request": {
+          "url": "https://app.requestly.io/echo?param1=value1",
+          "method": "POST",
+          "queryParams": [
+            {
+              "id": 0,
+              "key": "param1",
+              "value": "value1",
+              "isEnabled": true
+            }
+          ],
+          "headers": [
+            {
+              "id": 0,
+              "key": "Content-Type",
+              "value": "application/x-www-form-urlencoded",
+              "isEnabled": true
+            }
+          ],
+          "body": [
+            {
+              "id": 1755589306901.4978,
+              "key": "FormDataText",
+              "value": "FormDataValue",
+              "isEnabled": true
+            },
+            {
+              "id": 1755589306901.2817,
+              "key": "FormDataFileLocal",
+              "value": "undefined",
+              "isEnabled": true
+            }
+          ],
+          "contentType": "application/x-www-form-urlencoded"
+        },
+        "auth": {
+          "currentAuthType": "INHERIT",
+          "authConfigStore": {}
+        },
+        "scripts": {
+          "preRequest": "",
+          "postResponse": ""
+        }
+      },
+      "collectionId": "t4KSDNQvSWHpew6JUHKH",
+      "deleted": false,
+      "id": "YBMw4mJnG3ksJZvBra11"
+    },
+    {
+      "name": "Raw JSON Body",
+      "type": "api",
+      "data": {
+        "type": "http",
+        "request": {
+          "url": "https://app.requestly.io/echo",
+          "method": "POST",
+          "queryParams": [],
+          "headers": [
+            {
+              "id": 0,
+              "key": "Content-Type",
+              "value": "application/json",
+              "isEnabled": true
+            }
+          ],
+          "body": "{\n    \"Hello\":\"World\"\n}",
+          "contentType": "application/json"
+        },
+        "auth": {
+          "currentAuthType": "INHERIT",
+          "authConfigStore": {}
+        },
+        "scripts": {
+          "preRequest": "",
+          "postResponse": ""
+        }
+      },
+      "collectionId": "t4KSDNQvSWHpew6JUHKH",
+      "deleted": false,
+      "id": "rjxa7s3hTPujguPxhURg"
+    },
+    {
+      "name": "Raw Text Body",
+      "type": "api",
+      "data": {
+        "type": "http",
+        "request": {
+          "url": "{{base_url}}",
+          "method": "POST",
+          "queryParams": [],
+          "headers": [
+            {
+              "id": 0,
+              "key": "Content-Type",
+              "value": "text/plain",
+              "isEnabled": true
+            }
+          ],
+          "body": "\"This is Raw Body\"",
+          "contentType": "text/plain"
+        },
+        "auth": {
+          "currentAuthType": "INHERIT",
+          "authConfigStore": {}
+        },
+        "scripts": {
+          "preRequest": "",
+          "postResponse": ""
+        }
+      },
+      "collectionId": "t4KSDNQvSWHpew6JUHKH",
+      "deleted": false,
+      "id": "vNeDRhfLXwUSVE02XOGQ"
+    },
+    {
+      "name": "x-www-form-urlencoded",
+      "type": "api",
+      "data": {
+        "type": "http",
+        "request": {
+          "url": "{{base_url}}",
+          "method": "POST",
+          "queryParams": [],
+          "headers": [
+            {
+              "id": 0,
+              "key": "Content-Type",
+              "value": "application/x-www-form-urlencoded",
+              "isEnabled": true
+            }
+          ],
+          "body": [
+            {
+              "id": 1755589306901.2937,
+              "key": "Key",
+              "value": "Value",
+              "isEnabled": true
+            },
+            {
+              "id": 1755589306901.5164,
+              "key": "Key 2",
+              "value": "Value 2",
+              "isEnabled": true
+            }
+          ],
+          "contentType": "application/x-www-form-urlencoded"
+        },
+        "auth": {
+          "currentAuthType": "INHERIT",
+          "authConfigStore": {}
+        },
+        "scripts": {
+          "preRequest": "",
+          "postResponse": ""
+        }
+      },
+      "collectionId": "t4KSDNQvSWHpew6JUHKH",
+      "deleted": false,
+      "id": "g6Nz270QMuzzQR2S1aGw"
+    }
+  ]
+}

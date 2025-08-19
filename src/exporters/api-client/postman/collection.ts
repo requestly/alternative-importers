@@ -1,17 +1,18 @@
 import JSZip from 'jszip';
 
-interface RequestlyVariable {
+// Shared types for both collection and environment
+interface RQVariable {
   id: number;
   syncValue: string;
   type: string;
 }
 
-interface RequestlyAuth {
+interface RQAuth {
   currentAuthType: string;
   authConfigStore: Record<string, any>;
 }
 
-interface RequestlyHeader {
+interface RQHeader {
   id?: number;
   key: string;
   value: string;
@@ -19,14 +20,14 @@ interface RequestlyHeader {
   type?: string;
 }
 
-interface RequestlyQueryParam {
+interface RQQueryParam {
   id: number;
   key: string;
   value: string;
   isEnabled: boolean;
 }
 
-interface RequestlyFormField {
+interface RQFormField {
   id: number;
   key: string;
   value: string | Array<{
@@ -41,42 +42,42 @@ interface RequestlyFormField {
 }
 
 // For simpler form fields (like URL-encoded) that don't have type
-interface RequestlySimpleFormField {
+interface RQSimpleFormField {
   id: number;
   key: string;
   value: string;
   isEnabled: boolean;
 }
 
-interface RequestlyBodyContainer {
+interface RQBodyContainer {
   text: string;
-  form: RequestlyFormField[];
-  multipartForm: RequestlyFormField[];
+  form: RQFormField[];
+  multipartForm: RQFormField[];
 }
 
-interface RequestlyRequest {
+interface RQRequest {
   url: string;
   method: string;
-  queryParams: RequestlyQueryParam[];
-  headers: RequestlyHeader[];
-  body: string | RequestlyFormField[] | RequestlySimpleFormField[] | null;
+  queryParams: RQQueryParam[];
+  headers: RQHeader[];
+  body: string | RQFormField[] | RQSimpleFormField[] | null;
   contentType: string;
-  bodyContainer?: RequestlyBodyContainer;
+  bodyContainer?: RQBodyContainer;
 }
 
-interface RequestlyScripts {
+interface RQScripts {
   preRequest: string;
   postResponse: string;
 }
 
-interface RequestlyRecord {
+interface RQRecord {
   name: string;
   type: "collection" | "api";
   data: {
-    variables?: Record<string, RequestlyVariable>;
-    auth?: RequestlyAuth;
-    request?: RequestlyRequest;
-    scripts?: RequestlyScripts;
+    variables?: Record<string, RQVariable>;
+    auth?: RQAuth;
+    request?: RQRequest;
+    scripts?: RQScripts;
   };
   collectionId: string;
   deleted: boolean;
@@ -84,17 +85,17 @@ interface RequestlyRecord {
   id: string;
 }
 
-interface RequestlyEnvironment {
+interface RQEnvironment {
   id: string;
   name: string;
-  variables: Record<string, RequestlyVariable>;
+  variables: Record<string, RQVariable>;
   isGlobal: boolean;
 }
 
-interface RequestlyExport {
+interface RQExport {
   schema_version: string;
-  records: RequestlyRecord[];
-  environments?: RequestlyEnvironment[];
+  records: RQRecord[];
+  environments?: RQEnvironment[];
 }
 
 interface PostmanInfo {
@@ -197,20 +198,6 @@ interface PostmanItem {
   variable?: PostmanVariable[];
 }
 
-interface PostmanEnvironment {
-  id: string;
-  name: string;
-  values: Array<{
-    key: string;
-    value: string;
-    type: string;
-    enabled: boolean;
-  }>;
-  _postman_variable_scope: string;
-  _postman_exported_at?: string;
-  _postman_exported_using?: string;
-}
-
 interface PostmanCollection {
   info: PostmanInfo;
   item: PostmanItem[];
@@ -219,7 +206,7 @@ interface PostmanCollection {
   event?: PostmanEvent[];
 }
 
-function convertAuth(requestlyAuth?: RequestlyAuth): PostmanAuth | undefined {
+function convertAuth(requestlyAuth?: RQAuth): PostmanAuth | undefined {
   if (!requestlyAuth || requestlyAuth.currentAuthType === "INHERIT") {
     return undefined;
   }
@@ -289,7 +276,7 @@ function convertAuth(requestlyAuth?: RequestlyAuth): PostmanAuth | undefined {
 }
 
 function convertVariables(
-  requestlyVariables?: Record<string, RequestlyVariable>
+  requestlyVariables?: Record<string, RQVariable>
 ): PostmanVariable[] {
   if (!requestlyVariables) {
     return [];
@@ -303,13 +290,20 @@ function convertVariables(
   }));
 }
 
-function convertScripts(requestlyScripts?: RequestlyScripts): PostmanEvent[] {
+/**
+ * Converts Requestly script to Postman script format by replacing 'rq' with 'pm'
+ */
+function convertScript(script: string): string {
+  return script
+    .replace(/\brq\./g, "pm.")
+    .replace(/\brq\b/g, "pm");
+}
+
+function convertScripts(requestlyScripts?: RQScripts): PostmanEvent[] {
   const events: PostmanEvent[] = [];
 
   if (requestlyScripts?.preRequest) {
-    const convertedPreRequest = requestlyScripts.preRequest
-      .replace(/\brq\./g, "pm.")
-      .replace(/\brq\b/g, "pm");
+    const convertedPreRequest = convertScript(requestlyScripts.preRequest);
 
     events.push({
       listen: "prerequest",
@@ -323,9 +317,7 @@ function convertScripts(requestlyScripts?: RequestlyScripts): PostmanEvent[] {
   }
 
   if (requestlyScripts?.postResponse) {
-    const convertedPostResponse = requestlyScripts.postResponse
-      .replace(/\brq\./g, "pm.")
-      .replace(/\brq\b/g, "pm");
+    const convertedPostResponse = convertScript(requestlyScripts.postResponse);
 
     events.push({
       listen: "test",
@@ -339,40 +331,6 @@ function convertScripts(requestlyScripts?: RequestlyScripts): PostmanEvent[] {
   }
 
   return events;
-}
-
-/**
- * Converts Requestly environment to Postman environment format
- */
-function convertEnvironment(requestlyEnv: RequestlyEnvironment): PostmanEnvironment {
-  const values = Object.entries(requestlyEnv.variables).map(([key, variable]) => ({
-    key,
-    value: variable.syncValue,
-    type: variable.type === "secret" ? "secret" : "default",
-    enabled: true,
-  }));
-
-  return {
-    id: crypto.randomUUID(),
-    name: requestlyEnv.name,
-    values,
-    _postman_variable_scope: "environment",
-    _postman_exported_at: new Date().toISOString(),
-    _postman_exported_using: "Requestly Alternative Importer",
-  };
-}
-
-/**
- * Converts Requestly environments to Postman environment format
- */
-export function convertRequestlyEnvironmentsToPostman(
-  requestlyData: RequestlyExport
-): PostmanEnvironment[] {
-  if (!requestlyData.environments || requestlyData.environments.length === 0) {
-    return [];
-  }
-
-  return requestlyData.environments.map(convertEnvironment);
 }
 
 /**
@@ -448,7 +406,7 @@ function parseUrl(url: string): {
  * Converts Requestly request to Postman request format
  */
 function convertRequest(
-  requestlyRecord: RequestlyRecord
+  requestlyRecord: RQRecord
 ): PostmanRequest | undefined {
   const requestData = requestlyRecord.data.request;
   if (!requestData) {
@@ -458,12 +416,13 @@ function convertRequest(
   const { host, path, protocol, variables } = parseUrl(requestData.url);
 
   const [, queryString] = requestData.url.split("?");
-  const urlQueryParams: PostmanQueryParam[] = [];
+  const queryParamsMap = new Map<string, PostmanQueryParam>();
 
+  // First, add URL query parameters (disabled by default)
   if (queryString) {
     const urlParams = new URLSearchParams(queryString);
     urlParams.forEach((value, key) => {
-      urlQueryParams.push({
+      queryParamsMap.set(key, {
         key,
         value,
         disabled: true,
@@ -471,21 +430,22 @@ function convertRequest(
     });
   }
 
-  const requestQueryParams: PostmanQueryParam[] = requestData.queryParams.map(
-    (param) => ({
+  // Then, add/override with request query parameters (respecting their enabled state)
+  requestData.queryParams.forEach((param) => {
+    queryParamsMap.set(param.key, {
       key: param.key,
       value: param.value,
       disabled: !param.isEnabled,
-    })
-  );
+    });
+  });
 
-  const allQueryParams = [...urlQueryParams, ...requestQueryParams];
+  const allQueryParams = Array.from(queryParamsMap.values());
 
   const headers: PostmanHeader[] = requestData.headers.map((header) => ({
     key: header.key,
     value: header.value,
     type: header.type || "text",
-    disabled: header.isEnabled === false,
+    disabled: !header.isEnabled,
   }));
 
   let body: PostmanBody | undefined;
@@ -577,9 +537,9 @@ function convertRequest(
  * Builds a hierarchical structure from flat Requestly records
  */
 function buildHierarchy(
-  records: RequestlyRecord[]
-): Map<string, RequestlyRecord[]> {
-  const hierarchy = new Map<string, RequestlyRecord[]>();
+  records: RQRecord[]
+): Map<string, RQRecord[]> {
+  const hierarchy = new Map<string, RQRecord[]>();
 
   records.forEach((record) => {
     const parentId = record.collectionId || "root";
@@ -596,8 +556,8 @@ function buildHierarchy(
  * Converts records to Postman items recursively
  */
 function convertToPostmanItems(
-  records: RequestlyRecord[],
-  hierarchy: Map<string, RequestlyRecord[]>
+  records: RQRecord[],
+  hierarchy: Map<string, RQRecord[]>
 ): PostmanItem[] {
   return records.map((record) => {
     const item: PostmanItem = {
@@ -638,8 +598,8 @@ function convertToPostmanItems(
  * Creates a single Postman collection from a root collection
  */
 function createCollectionFromRoot(
-  rootCollection: RequestlyRecord,
-  hierarchy: Map<string, RequestlyRecord[]>
+  rootCollection: RQRecord,
+  hierarchy: Map<string, RQRecord[]>
 ): PostmanCollection {
   const children = hierarchy.get(rootCollection.id) || [];
   const allItems = convertToPostmanItems(children, hierarchy);
@@ -727,7 +687,7 @@ interface SingleCollectionResult {
  * Main function to convert Requestly export to Postman collection(s)
  */
 export function convertRequestlyCollectionToPostman(
-  requestlyData: RequestlyExport
+  requestlyData: RQExport
 ): SingleCollectionResult | Promise<MultipleCollectionsResult> {
   const records = requestlyData.records.filter((record) => !record.deleted);
 
@@ -817,11 +777,9 @@ export function convertRequestlyCollectionToPostman(
 }
 
 export type {
-  RequestlyExport,
-  RequestlyEnvironment,
+  RQExport as RequestlyExport,
+  RQRecord as RequestlyRecord,
   PostmanCollection,
-  PostmanEnvironment,
-  RequestlyRecord,
   PostmanItem,
   MultipleCollectionsResult,
   SingleCollectionResult,

@@ -1,5 +1,5 @@
 export * from "./importers/http-rules";
-export * from "./importers/api-client";
+export * from "./exporters/api-client";
 export type {
   HttpRuleImporterMethod,
   HttpRuleImporterOutput,
