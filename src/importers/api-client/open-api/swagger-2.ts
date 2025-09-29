@@ -4,6 +4,7 @@ import { parse as parseYaml } from 'yaml';
 import { unthrowableParseJson } from "./utils";
 import { RQAPI, RequestMethod, KeyValuePair, RequestContentType, Authorization } from "@requestly/shared/types/entities/apiClient";
 import { PathGroupMap } from "./types";
+import { ApiClientImporterMethod } from "~/importers/types";
 
 const SwaggerParser = require("@apidevtools/swagger-parser");
 
@@ -330,7 +331,7 @@ const parseSpecification = (specData: OpenAPIV2.Document): RQAPI.CollectionRecor
     return rootCollection;
 }
 
-export const convert = async(specFile: ImportFile): Promise<RQAPI.CollectionRecord> => {
+export const convert: ApiClientImporterMethod<ImportFile> = async(specFile: ImportFile) => {
     let specData: OpenAPIV2.Document = await preProcessSpecFile(specFile);
     if(!specData || !SUPPORTED_SWAGGER_SPEC_VERSION.test(specData.swagger)){
         throw new Error("Invalid Swagger 2.0 specification");
@@ -345,7 +346,12 @@ export const convert = async(specFile: ImportFile): Promise<RQAPI.CollectionReco
         console.log("🔍 Swagger 2.0 Spec data:", specData);
 
         const collectionRecord = parseSpecification(specData);
-        return collectionRecord;
+        return {
+            data: {
+                collection: collectionRecord,
+                environments: []
+            }
+        };
 
     }catch(error){
         console.error("Error validating Swagger 2.0 spec file:", error);

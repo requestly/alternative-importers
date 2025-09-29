@@ -2,8 +2,9 @@ import { ImportFile } from "../types";
 import { OpenAPIV3 } from 'openapi-types';
 import { parse as parseYaml } from 'yaml';
 import { unthrowableParseJson } from "./utils";
-import { RQAPI,RequestMethod, KeyValuePair, RequestContentType, Authorization, EnvironmentVariables } from "@requestly/shared/types/entities/apiClient";
+import { RQAPI,RequestMethod, KeyValuePair, RequestContentType, Authorization, EnvironmentVariables, EnvironmentData } from "@requestly/shared/types/entities/apiClient";
 import { PathGroupMap } from "./types";
+import { ApiClientImporterMethod } from "~/importers/types";
 
 const SwaggerParser = require("@apidevtools/swagger-parser");
 
@@ -173,7 +174,8 @@ const createApiRecord = (
     method: RequestMethod,
     specData: OpenAPIV3.Document
 ): RQAPI.ApiRecord => {
-    const fullUrl = `{{base_url}}${path}`;
+    const resolvedPath = path.replace(/\{([^}]+)\}/g, ':$1');
+    const fullUrl = `{{base_url}}${resolvedPath}`;
     
     // Extract path variables
     const pathVariables: RQAPI.PathVariable[] = [];
@@ -225,7 +227,7 @@ const createApiRecord = (
     // Create API record
     const apiRecord: RQAPI.ApiRecord = {
         id: "",
-        name: `${method} ${path}`,
+        name: operation.summary || `${path}`,
         description: operation.description || '',
         collectionId: "",
         isExample: false,
@@ -344,8 +346,23 @@ const parseSpecification = (specData: OpenAPIV3.Document): RQAPI.CollectionRecor
     return rootCollection;
 }
 
+const createServerEnvironment = (server: OpenAPIV3.ServerObject): EnvironmentData => {
+    // TODO: Figure out a way to handle vars inside server objects
+    // TODO: Figure out a way to name the environments
+    return {
+        id:"",
+        name:server.url || "",
+        variables: createServerVariables([server]),
+    }
+}
 
-export const convert = async(specFile: ImportFile): Promise<RQAPI.CollectionRecord> => {
+const parseServerEnvironments = (servers: OpenAPIV3.ServerObject[] | undefined): EnvironmentData[] => {
+  if(!servers || servers.length === 0) return [];
+  return servers.map((server)=> createServerEnvironment(server))
+}
+
+
+export const convert: ApiClientImporterMethod<ImportFile> = async(specFile: ImportFile) => {
     let specData: OpenAPIV3.Document = await preProcessSpecFile(specFile);
     
     if(!specData || !SUPPORTED_OPENAPI_SPEC_VERSION.test(specData.openapi)){
@@ -360,8 +377,14 @@ export const convert = async(specFile: ImportFile): Promise<RQAPI.CollectionReco
 
         console.log("Spec data:", specData);
 
+        const environments = parseServerEnvironments(specData.servers);
         const collectionRecord = parseSpecification(specData);
-        return collectionRecord;
+        return {
+            data: {
+                collection: collectionRecord,
+                environments
+            }
+        };
 
     }catch(error){
         console.error("Error validating spec file:", error);
