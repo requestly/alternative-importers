@@ -1,11 +1,11 @@
-import { RQAPI } from '@requestly/shared/types/entities/apiClient';
 import { ImportFile } from "../types";
 import * as openApi3Importer from './openapi-3';
 import * as swagger2Importer from './swagger-2';
+import { ApiClientImporterOutput } from '~/importers/types';
 
 
 
-export const parseOpenApiSpecToRQRecords = async (specs: ImportFile): Promise<RQAPI.CollectionRecord> => {
+export const openApiImporter = async (specs: ImportFile): Promise<ApiClientImporterOutput> => {
     console.log("Starting API spec parsing...");
     console.log("Input specs file:", {
         name: specs.name,

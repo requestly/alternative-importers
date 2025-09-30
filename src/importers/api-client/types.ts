@@ -3,8 +3,3 @@ export interface ImportFile {
     name: string;
     content: string
 }
-
-export enum ApiClientImporterType {
-    OPEN_API = "open_api",
-    SWAGGER_2 = "swagger_2",
-}

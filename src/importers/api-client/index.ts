@@ -1,2 +1,2 @@
-export {apiClientImporter} from "./importer"
+export {openApiImporter} from "./open-api"
 export * from "./types"
