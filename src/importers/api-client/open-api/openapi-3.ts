@@ -14,6 +14,13 @@ const preProcessSpecFile = async(specFile: ImportFile): Promise<OpenAPIV3.Docume
     return (unthrowableParseJson(specFile.content) || parseYaml(specFile.content));
 }
 
+const resolveServerUrlWithDefaultVariables = (server: OpenAPIV3.ServerObject): string => {
+    const variables = server.variables || {};
+    const url = server.url 
+
+    return url.replace(/\{([^}]+)\}/g, (match, p1) => variables[p1]?.default || match);
+}
+
 // Create collection variables from server objects
 const createServerVariables = (servers: OpenAPIV3.ServerObject[]): EnvironmentVariables => {
     const variables: Record<string, any> = {};
@@ -27,7 +34,7 @@ const createServerVariables = (servers: OpenAPIV3.ServerObject[]): EnvironmentVa
         variables[variableName] = {
             id: index + 1,
             isPersisted: true,
-            syncValue: server.url || ''
+            syncValue: resolveServerUrlWithDefaultVariables(server)
         };
     });
     
@@ -346,19 +353,17 @@ const parseSpecification = (specData: OpenAPIV3.Document): RQAPI.CollectionRecor
     return rootCollection;
 }
 
-const createServerEnvironment = (server: OpenAPIV3.ServerObject): EnvironmentData => {
-    // TODO: Figure out a way to handle vars inside server objects
-    // TODO: Figure out a way to name the environments
+const createServerEnvironment = (server: OpenAPIV3.ServerObject, index: number, title: string): EnvironmentData => {
     return {
         id:"",
-        name:server.url || "",
+        name: `${title} ${index > 0 ? `(${index + 1})` : ''}`,
         variables: createServerVariables([server]),
     }
 }
 
-const parseServerEnvironments = (servers: OpenAPIV3.ServerObject[] | undefined): EnvironmentData[] => {
+const parseServerEnvironments = (servers: OpenAPIV3.ServerObject[] | undefined, title: string): EnvironmentData[] => {
   if(!servers || servers.length === 0) return [];
-  return servers.map((server)=> createServerEnvironment(server))
+  return servers.map((server, index)=> createServerEnvironment(server, index, title))
 }
 
 
@@ -377,7 +382,7 @@ export const convert: ApiClientImporterMethod<ImportFile> = async(specFile: Impo
 
         console.log("Spec data:", specData);
 
-        const environments = parseServerEnvironments(specData.servers);
+        const environments = parseServerEnvironments(specData.servers, specData.info.title);
         const collectionRecord = parseSpecification(specData);
         return {
             data: {
