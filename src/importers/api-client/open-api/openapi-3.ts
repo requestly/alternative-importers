@@ -21,7 +21,6 @@ const resolveServerUrlWithDefaultVariables = (server: OpenAPIV3.ServerObject): s
     return url.replace(/\{([^}]+)\}/g, (match, p1) => variables[p1]?.default || match);
 }
 
-// Create collection variables from server objects
 const createServerVariables = (servers: OpenAPIV3.ServerObject[]): EnvironmentVariables => {
     const variables: Record<string, any> = {};
     
@@ -47,7 +46,6 @@ const getDescriptionFromTags = (tags: OpenAPIV3.TagObject[], basePath: string): 
 }
 
 
-// group paths by their base path
 const groupPaths = (specData: OpenAPIV3.Document): PathGroupMap => {
     const pathGroups: PathGroupMap = {};
     
@@ -75,7 +73,6 @@ const groupPaths = (specData: OpenAPIV3.Document): PathGroupMap => {
     return pathGroups;
 }
 
-// create auth configuration
 const createAuthConfig = (operation: OpenAPIV3.OperationObject, specData: OpenAPIV3.Document): RQAPI.Auth => {
     const createAuthConfigObject = (schemeData: OpenAPIV3.SecuritySchemeObject): RQAPI.Auth => {
         const type = schemeData.type;
@@ -150,7 +147,6 @@ const prepareParameters = (parameters: (OpenAPIV3.ParameterObject| OpenAPIV3.Ref
     return filteredParams;
 }
 
-// Extract content type and body from OpenAPI operation request body
 const prepareRequestBody = (operation: OpenAPIV3.OperationObject): { contentType: RequestContentType; body: RQAPI.RequestBody | null } => {
     let contentType: RequestContentType = RequestContentType.JSON;
     let body: RQAPI.RequestBody | null = null;
@@ -175,7 +171,6 @@ const prepareRequestBody = (operation: OpenAPIV3.OperationObject): { contentType
     return { contentType, body };
 }
 
-// Helper function to create API records
 const createApiRecord = (
     operation: OpenAPIV3.OperationObject,
     path: string,
@@ -185,7 +180,6 @@ const createApiRecord = (
     const resolvedPath = path.replace(/\{([^}]+)\}/g, ':$1');
     const fullUrl = `{{base_url}}${resolvedPath}`;
     
-    // Extract path variables
     const pathVariables: RQAPI.PathVariable[] = [];
     const pathVarMatches = path.match(/\{([^}]+)\}/g);
     if (pathVarMatches) {
@@ -200,14 +194,10 @@ const createApiRecord = (
         });
     }
     
-    // Extract query parameters
     const queryParams: KeyValuePair[] = prepareParameters(operation.parameters, 'query');
-    // Extract headers
     const headers: KeyValuePair[] = prepareParameters(operation.parameters, 'header');
-    // Extract content type and body
     const { contentType, body } = prepareRequestBody(operation);
     
-    // Create HTTP request
     const httpRequest: RQAPI.HttpRequest = {
         url: fullUrl,
         queryParams,
@@ -226,7 +216,6 @@ const createApiRecord = (
         includeCredentials: false
     };
     
-    // Create HTTP API entry
     const httpApiEntry: RQAPI.HttpApiEntry = {
         type: RQAPI.ApiEntryType.HTTP,
         request: httpRequest,
@@ -239,7 +228,6 @@ const createApiRecord = (
         auth: createAuthConfig(operation, specData)
     };
 
-    // Create API record
     const apiRecord: RQAPI.ApiRecord = {
         id: "",
         name: operation.summary || `${path}`,
@@ -262,26 +250,21 @@ const createApiRecord = (
 const parseSpecification = (specData: OpenAPIV3.Document): RQAPI.CollectionRecord => {
     const currentTimestamp = Date.now();
     
-    // Extract root-level servers
     const rootServers = specData.servers || [];
     const rootServerVariables = createServerVariables(rootServers);
     
-    // Group paths by their base path
     const pathGroups = groupPaths(specData);
     
-    // Create API records for each path group
     const childCollections: RQAPI.CollectionRecord[] = [];
     
     Object.entries(pathGroups).forEach(([basePath, paths]) => {
         const collectionName = basePath.split('/')[1];
         
-        // Extract servers for this specific path group
         const pathGroupServers = specData.paths?.[basePath]?.servers || [];
         const pathServerVariables = pathGroupServers.length > 0 
             ? createServerVariables(pathGroupServers)
             : {}
         
-        // Create API records for this collection
         const apiRecords: RQAPI.ApiRecord[] = [];
         
         paths.forEach(({ path, methods }) => {
@@ -299,7 +282,6 @@ const parseSpecification = (specData: OpenAPIV3.Document): RQAPI.CollectionRecor
             });
         });
         
-        // Create collection for this path group
         const pathCollection: RQAPI.CollectionRecord = {
             id: "",
             name: collectionName,
@@ -330,7 +312,6 @@ const parseSpecification = (specData: OpenAPIV3.Document): RQAPI.CollectionRecor
         childCollections.push(pathCollection);
     });
     
-    // Create root collection
     const rootCollection: RQAPI.CollectionRecord = {
         id: "",
         name: specData.info?.title || 'OpenAPI Collection',

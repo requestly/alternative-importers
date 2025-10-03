@@ -128,12 +128,10 @@ const prepareParameters = (parameters: (OpenAPIV2.ParameterObject | OpenAPIV2.Re
     return filteredParams;
 }
 
-// Extract content type and body from Swagger 2.0 operation parameters
 const prepareRequestBody = (operation: OpenAPIV2.OperationObject): { contentType: RequestContentType; body: RQAPI.RequestBody | null } => {
     let contentType: RequestContentType = RequestContentType.JSON;
     let body: RQAPI.RequestBody | null = null;
     
-    // In Swagger 2.0, request body is defined in parameters with 'in': 'body'
     const bodyParam = operation.parameters?.find((param: any) => 
         param && typeof param === 'object' && 'in' in param && param.in === 'body'
     ) as OpenAPIV2.ParameterObject;
@@ -142,7 +140,6 @@ const prepareRequestBody = (operation: OpenAPIV2.OperationObject): { contentType
         contentType = RequestContentType.JSON;
         body = JSON.stringify(bodyParam.schema, null, 2);
     } else {
-        // Check for form data parameters
         const formDataParams = operation.parameters?.filter((param: any) => 
             param && typeof param === 'object' && 'in' in param && param.in === 'formData'
         );
@@ -178,11 +175,8 @@ const createApiRecord = (
         });
     }
     
-    // Extract query parameters
     const queryParams: KeyValuePair[] = prepareParameters(operation.parameters, 'query');
-    // Extract headers
     const headers: KeyValuePair[] = prepareParameters(operation.parameters, 'header');
-    // Extract content type and body
     const { contentType, body } = prepareRequestBody(operation);
     
     const requestData: RQAPI.HttpRequest = {
@@ -197,7 +191,6 @@ const createApiRecord = (
         includeCredentials: false
     };
     
-    // Create HTTP API entry
     const httpApiEntry: RQAPI.HttpApiEntry = {
         type: RQAPI.ApiEntryType.HTTP,
         request: requestData,
@@ -210,7 +203,6 @@ const createApiRecord = (
         auth: createAuthConfig(operation, specData)
     };
 
-    // Create API record
     const apiRecord: RQAPI.ApiRecord = {
         id: "",
         name: `${method} ${path}`,
@@ -233,19 +225,15 @@ const createApiRecord = (
 const parseSpecification = (specData: OpenAPIV2.Document): RQAPI.CollectionRecord => {
     const currentTimestamp = Date.now();
     
-    // Extract base URL
     const baseUrl = extractBaseUrl(specData);
     
-    // Group paths by their base path
     const pathGroups = groupPaths(specData);
     
-    // Create API records for each path group
     const childCollections: RQAPI.CollectionRecord[] = [];
     
     Object.entries(pathGroups).forEach(([basePath, paths]) => {
         const collectionName = basePath.split('/')[1];
         
-        // Create API records for this collection
         const apiRecords: RQAPI.ApiRecord[] = [];
         
         paths.forEach(({ path, methods }) => {
@@ -263,7 +251,6 @@ const parseSpecification = (specData: OpenAPIV2.Document): RQAPI.CollectionRecor
             });
         });
         
-        // Create collection for this path group
         const pathCollection: RQAPI.CollectionRecord = {
             id: "",
             name: collectionName,
@@ -294,7 +281,6 @@ const parseSpecification = (specData: OpenAPIV2.Document): RQAPI.CollectionRecor
         childCollections.push(pathCollection);
     });
     
-    // Create root collection
     const rootCollection: RQAPI.CollectionRecord = {
         id: "",
         name: specData.info?.title || 'Swagger Collection',
