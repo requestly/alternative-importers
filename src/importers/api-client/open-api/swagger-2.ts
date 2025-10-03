@@ -129,9 +129,9 @@ const prepareParameters = (parameters: (OpenAPIV2.ParameterObject | OpenAPIV2.Re
 }
 
 // Extract content type and body from Swagger 2.0 operation parameters
-const prepareRequestBody = (operation: OpenAPIV2.OperationObject): { contentType: RequestContentType; body: RQAPI.RequestBody | undefined } => {
+const prepareRequestBody = (operation: OpenAPIV2.OperationObject): { contentType: RequestContentType; body: RQAPI.RequestBody | null } => {
     let contentType: RequestContentType = RequestContentType.JSON;
-    let body: RQAPI.RequestBody | undefined;
+    let body: RQAPI.RequestBody | null = null;
     
     // In Swagger 2.0, request body is defined in parameters with 'in': 'body'
     const bodyParam = operation.parameters?.find((param: any) => 
@@ -191,6 +191,7 @@ const createApiRecord = (
         method,
         pathVariables,
         headers,
+        // @ts-ignore
         body,
         contentType,
         includeCredentials: false

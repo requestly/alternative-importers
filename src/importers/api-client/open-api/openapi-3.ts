@@ -2,7 +2,7 @@ import { ImportFile } from "../types";
 import { OpenAPIV3 } from 'openapi-types';
 import { parse as parseYaml } from 'yaml';
 import { unthrowableParseJson } from "./utils";
-import { RQAPI,RequestMethod, KeyValuePair, RequestContentType, Authorization, EnvironmentVariables, EnvironmentData } from "@requestly/shared/types/entities/apiClient";
+import { RQAPI,RequestMethod, KeyValuePair, RequestContentType, Authorization, EnvironmentVariables, EnvironmentData, EnvironmentVariableType } from "@requestly/shared/types/entities/apiClient";
 import { PathGroupMap } from "./types";
 import { ApiClientImporterMethod } from "~/importers/types";
 
@@ -34,6 +34,7 @@ const createServerVariables = (servers: OpenAPIV3.ServerObject[]): EnvironmentVa
         variables[variableName] = {
             id: index + 1,
             isPersisted: true,
+            type: EnvironmentVariableType.String,
             syncValue: resolveServerUrlWithDefaultVariables(server)
         };
     });
@@ -150,9 +151,9 @@ const prepareParameters = (parameters: (OpenAPIV3.ParameterObject| OpenAPIV3.Ref
 }
 
 // Extract content type and body from OpenAPI operation request body
-const prepareRequestBody = (operation: OpenAPIV3.OperationObject): { contentType: RequestContentType; body: RQAPI.RequestBody | undefined } => {
+const prepareRequestBody = (operation: OpenAPIV3.OperationObject): { contentType: RequestContentType; body: RQAPI.RequestBody | null } => {
     let contentType: RequestContentType = RequestContentType.JSON;
-    let body: RQAPI.RequestBody | undefined;
+    let body: RQAPI.RequestBody | null = null;
     
     if (operation.requestBody && typeof operation.requestBody === 'object' && 'content' in operation.requestBody) {
         const content = operation.requestBody.content;
@@ -213,6 +214,13 @@ const createApiRecord = (
         method,
         pathVariables,
         headers,
+        /*
+        TODO: fix this
+        Accoring to our types we allow undefiend values for body, but this will cause issues whhen
+        saving the record in firestore DB because it firebase does not allow undefiend values in documents.
+        We need to fix this by adding a default value for body in the types or giving a null value to body
+        */
+        // @ts-ignore
         body,
         contentType,
         includeCredentials: false
