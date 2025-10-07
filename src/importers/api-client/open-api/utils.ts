@@ -1,3 +1,4 @@
+
 export const unthrowableParseJson = (rawData: string) => {
   try {
     return JSON.parse(rawData);
@@ -48,17 +49,14 @@ export const getParamValue = (paramSchema: any): ParamValue => {
     return "string";
   }
 
-  // Return default value if specified
   if (paramSchema.default !== undefined) {
     return paramSchema.default;
   }
 
-  // Return first enum value if available
   if (paramSchema.enum && paramSchema.enum.length > 0) {
     return getEnumValue(paramSchema);
   }
 
-  // Return type-specific default value
   const paramType = getParamType(paramSchema);
   return getDefaultValueForType(paramType, paramSchema);
 };

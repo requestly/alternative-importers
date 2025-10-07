@@ -136,9 +136,10 @@ export const prepareParameters = (parameters: (OpenAPIV3.ParameterObject| OpenAP
     const filteredParams: KeyValuePair[] = parameters.map((param: any, index: number) => {
         if (typeof param === 'object' && 'in' in param && param.in === parameterType) {
             const paramSchema = param.schema as OpenAPIV3.SchemaObject;
+            if(!param.name) return undefined;
             return {
                 id: index + 1,
-                key: param.name || '',
+                key: param.name,
                 value: String(getParamValue(paramSchema)),
                 isEnabled: true,
             };
@@ -148,28 +149,153 @@ export const prepareParameters = (parameters: (OpenAPIV3.ParameterObject| OpenAP
     return filteredParams;
 }
 
-const prepareRequestBody = (operation: OpenAPIV3.OperationObject): { contentType: RequestContentType; body: RQAPI.RequestBody | null } => {
-    let contentType: RequestContentType = RequestContentType.JSON;
-    let body: RQAPI.RequestBody | null = null;
+
+export const getRawRequestBody = (schema: OpenAPIV3.SchemaObject): string => {
+    return schema.default ?? schema.example ?? "";
+}
+
+export const getUrlEncodedRequestBody = (schema: OpenAPIV3.SchemaObject): RQAPI.FormDataKeyValuePair[] => {
+    const formData: RQAPI.FormDataKeyValuePair[] = [];
     
-    if (operation.requestBody && typeof operation.requestBody === 'object' && 'content' in operation.requestBody) {
-        const content = operation.requestBody.content;
-        if (content['application/json']) {
-            contentType = RequestContentType.JSON;
-            body = JSON.stringify(content['application/json'].schema || {}, null, 2);
-        } else if (content['application/x-www-form-urlencoded']) {
-            contentType = RequestContentType.FORM;
-            body = [];
-        } else if (content['multipart/form-data']) {
-            contentType = RequestContentType.MULTIPART_FORM;
-            body = [];
-        } else if (content['text/plain']) {
-            contentType = RequestContentType.RAW;
-            body = '';
-        }
+    if (schema.properties) {
+        Object.entries(schema.properties).forEach(([key, property], index) => {
+            if (property) {
+                const propSchema = property as OpenAPIV3.SchemaObject;
+                const value = propSchema.example ?? propSchema.default ?? '';
+                
+                formData.push({
+                    id: index + 1,
+                    key: key,
+                    value: String(value),
+                    isEnabled: true
+                });
+            }
+        });
     }
     
-    return { contentType, body };
+    return formData;
+}
+
+export const getMultipartFormRequestBody = (schema: OpenAPIV3.SchemaObject): RQAPI.FormDataKeyValuePair[] => {
+    const formData: RQAPI.FormDataKeyValuePair[] = [];
+    
+    if (schema.properties) {
+        Object.entries(schema.properties).forEach(([key, property], index) => {
+            if (property) {
+                const propSchema = property as OpenAPIV3.SchemaObject;
+                const value = propSchema.example ?? propSchema.default ?? '';
+                
+                formData.push({
+                    id: index + 1,
+                    key: key,
+                    value: "",
+                    isEnabled: true
+                });
+            }
+        });
+    }
+    
+    return formData;
+}
+
+const getJsonValue = (schema: OpenAPIV3.SchemaObject): any => {
+    
+    switch (schema.type) {
+        case 'string':
+            return schema.example ?? schema.default ?? '';
+        case 'number':
+        case 'integer':
+            return schema.example ?? schema.default ?? 0;
+        case 'boolean':
+            return schema.example ?? schema.default ?? false;
+        case 'array':
+            if (schema.example !== undefined) {
+                return schema.example;
+            }
+            if (schema.default !== undefined) {
+                return schema.default;
+            }
+            if (schema.items) {
+                const itemsSchema = schema.items as OpenAPIV3.SchemaObject;
+                return [getJsonValue(itemsSchema)];
+            }
+            return [];
+        case 'object':
+            if (schema.properties) {
+                const obj: Record<string, any> = {};
+                Object.entries(schema.properties).forEach(([key, property]) => {
+                    if (property) {
+                        const propSchema = property as OpenAPIV3.SchemaObject;
+                        obj[key] = getJsonValue(propSchema);
+                    }
+                });
+                return obj;
+            }
+            return {};
+        default:
+            return null;
+    }
+}
+
+export const getJsonRequestBody = (schema: OpenAPIV3.SchemaObject): string => {
+    const json: Record<string, any> = {};
+    
+    if (schema.properties) {
+        Object.entries(schema.properties).forEach(([key, property]) => {
+            if (property) {
+                const propSchema = property as OpenAPIV3.SchemaObject;
+                json[key] = getJsonValue(propSchema);
+            }
+        });
+    }
+    
+    return JSON.stringify(json, null, 2);
+}
+
+
+
+const getRawTextFromSchema = (schema: OpenAPIV3.SchemaObject): string => {
+    return schema.example ?? schema.default ?? '';
+}
+
+const prepareRequestBody = (operation: OpenAPIV3.OperationObject): { contentType: RequestContentType; bodyContainer: RQAPI.RequestBodyContainer } => {
+    const requestBody = operation.requestBody as OpenAPIV3.RequestBodyObject;
+    const bodyContainer: RQAPI.RequestBodyContainer = {
+        text: '',
+        form: [],
+        multipartForm: []
+    };
+    let contentType: RequestContentType | null = null;
+    
+    if (!requestBody?.content) {
+        return { contentType: RequestContentType.RAW, bodyContainer };
+    }
+    
+    const content = requestBody.content;
+
+    if(content[RequestContentType.RAW]){
+        contentType = RequestContentType.RAW;
+        bodyContainer.text = getRawTextFromSchema(content[RequestContentType.RAW].schema as OpenAPIV3.SchemaObject);
+    }
+    
+    if (content[RequestContentType.JSON]) {
+        contentType = RequestContentType.JSON;
+        bodyContainer.text = getJsonRequestBody(content[RequestContentType.JSON].schema as OpenAPIV3.SchemaObject);
+    }
+    
+    if (content[RequestContentType.FORM]) {
+        contentType = RequestContentType.FORM;
+        bodyContainer.form = getUrlEncodedRequestBody(content[RequestContentType.FORM].schema as OpenAPIV3.SchemaObject);
+    }
+    
+    if (content[RequestContentType.MULTIPART_FORM]) {
+        contentType = RequestContentType.MULTIPART_FORM;
+        bodyContainer.multipartForm = getMultipartFormRequestBody(content[RequestContentType.MULTIPART_FORM].schema as OpenAPIV3.SchemaObject);
+    }
+    
+
+    
+    return { contentType: contentType || RequestContentType.RAW, bodyContainer };
 }
 
 const createApiRecord = (
@@ -197,7 +323,7 @@ const createApiRecord = (
     
     const queryParams: KeyValuePair[] = prepareParameters(operation.parameters, 'query');
     const headers: KeyValuePair[] = prepareParameters(operation.parameters, 'header');
-    const { contentType, body } = prepareRequestBody(operation);
+    const { contentType, bodyContainer } = prepareRequestBody(operation);
     
     const httpRequest: RQAPI.HttpRequest = {
         url: fullUrl,
@@ -211,8 +337,7 @@ const createApiRecord = (
         saving the record in firestore DB because it firebase does not allow undefiend values in documents.
         We need to fix this by adding a default value for body in the types or giving a null value to body
         */
-        // @ts-ignore
-        body,
+        bodyContainer,
         contentType,
         includeCredentials: false
     };
