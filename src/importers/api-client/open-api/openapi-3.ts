@@ -1,7 +1,7 @@
 import { ImportFile } from "../types";
 import { OpenAPIV3 } from 'openapi-types';
 import { parse as parseYaml } from 'yaml';
-import { unthrowableParseJson } from "./utils";
+import { unthrowableParseJson, getParamType, getParamValue, ParamValue } from "./utils";
 import { RQAPI,RequestMethod, KeyValuePair, RequestContentType, Authorization, EnvironmentVariables, EnvironmentData, EnvironmentVariableType } from "@requestly/shared/types/entities/apiClient";
 import { PathGroupMap } from "./types";
 import { ApiClientImporterMethod } from "~/importers/types";
@@ -131,14 +131,15 @@ const createAuthConfig = (operation: OpenAPIV3.OperationObject, specData: OpenAP
     return authConfig;
 }
 
-const prepareParameters = (parameters: (OpenAPIV3.ParameterObject| OpenAPIV3.ReferenceObject)[] | undefined, parameterType: 'query' | 'header'): KeyValuePair[] => {
+export const prepareParameters = (parameters: (OpenAPIV3.ParameterObject| OpenAPIV3.ReferenceObject)[] | undefined, parameterType: 'query' | 'header'): KeyValuePair[] => {
     if(!parameters) return [];
     const filteredParams: KeyValuePair[] = parameters.map((param: any, index: number) => {
         if (typeof param === 'object' && 'in' in param && param.in === parameterType) {
+            const paramSchema = param.schema as OpenAPIV3.SchemaObject;
             return {
                 id: index + 1,
                 key: param.name || '',
-                value: '',
+                value: String(getParamValue(paramSchema)),
                 isEnabled: true,
             };
         }

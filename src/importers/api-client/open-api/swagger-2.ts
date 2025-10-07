@@ -1,7 +1,7 @@
 import { ImportFile } from "../types";
 import { OpenAPIV2 } from 'openapi-types';
 import { parse as parseYaml } from 'yaml';
-import { unthrowableParseJson } from "./utils";
+import { unthrowableParseJson, getParamValue } from "./utils";
 import { RQAPI, RequestMethod, KeyValuePair, RequestContentType, Authorization } from "@requestly/shared/types/entities/apiClient";
 import { PathGroupMap } from "./types";
 import { ApiClientImporterMethod } from "~/importers/types";
@@ -116,10 +116,11 @@ const prepareParameters = (parameters: (OpenAPIV2.ParameterObject | OpenAPIV2.Re
     if (!parameters) return [];
     const filteredParams: KeyValuePair[] = parameters.map((param: any, index: number) => {
         if (typeof param === 'object' && 'in' in param && param.in === parameterType) {
+            const paramSchema = param.schema as OpenAPIV2.SchemaObject;
             return {
                 id: index + 1,
                 key: param.name || '',
-                value: '',
+                value: String(getParamValue(paramSchema)),
                 isEnabled: true,
             };
         }
