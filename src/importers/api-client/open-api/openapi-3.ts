@@ -334,6 +334,7 @@ const createApiRecord = (
     const fullUrl = `{{base_url}}${resolvedPath}`;
     
     const {queryParams, headers, pathParams} = prepareParameters(operation.parameters as OpenAPIV3.ParameterObject[]);
+    
     const pathVariables: RQAPI.PathVariable[] = [];
     const pathVarMatches = path.match(/\{([^}]+)\}/g);
     if (pathVarMatches) {

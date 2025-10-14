@@ -112,21 +112,39 @@ const createAuthConfig = (operation: OpenAPIV2.OperationObject, specData: OpenAP
     return authConfig;
 }
 
-const prepareParameters = (parameters: (OpenAPIV2.ParameterObject | OpenAPIV2.ReferenceObject)[] | undefined, parameterType: 'query' | 'header'): KeyValuePair[] => {
-    if (!parameters) return [];
-    const filteredParams: KeyValuePair[] = parameters.map((param: any, index: number) => {
-        if (typeof param === 'object' && 'in' in param && param.in === parameterType) {
-            const paramSchema = param.schema as OpenAPIV2.SchemaObject;
-            return {
+const prepareParameters = (parameters:OpenAPIV2.ParameterObject[]): { queryParams: KeyValuePair[], headers: KeyValuePair[], pathParams: RQAPI.PathVariable[] } => {
+    if (!parameters) return { queryParams: [], headers: [], pathParams: [] };
+    const queryParams: KeyValuePair[] = [];
+    const headers: KeyValuePair[] = [];
+    const pathParams: RQAPI.PathVariable[] = [];
+    
+    parameters.forEach((param: OpenAPIV2.ParameterObject, index: number) => {
+        if(param.in === 'query'){
+            queryParams.push({
                 id: index + 1,
                 key: param.name || '',
-                value: String(getParamValue(paramSchema)),
+                value: String(getParamValue(param.schema)),
                 isEnabled: true,
-            };
+            });
         }
-        return undefined;
-    }).filter(Boolean) as KeyValuePair[];
-    return filteredParams;
+        else if(param.in === 'header'){
+            headers.push({
+                id: index + 1,
+                key: param.name || '',
+                value: String(getParamValue(param.schema)),
+                isEnabled: true,
+            });
+        }
+        else if(param.in === 'path'){
+            pathParams.push({
+                id: index + 1,
+                key: param.name || '',
+                value: String(getParamValue(param.schema)),
+                description: param.description || "",
+            });
+        }
+    });
+    return { queryParams, headers, pathParams };
 }
 
 const prepareRequestBody = (operation: OpenAPIV2.OperationObject): { contentType: RequestContentType; body: RQAPI.RequestBody | null } => {
@@ -161,6 +179,8 @@ const createApiRecord = (
     specData: OpenAPIV2.Document
 ): RQAPI.ApiRecord => {
     const fullUrl = `{{base_url}}${path}`;
+
+    const {queryParams, headers, pathParams} = prepareParameters(operation.parameters as OpenAPIV2.ParameterObject[]);
     
     const pathVariables: RQAPI.PathVariable[] = [];
     const pathVarMatches = path.match(/\{([^}]+)\}/g);
@@ -170,14 +190,12 @@ const createApiRecord = (
             pathVariables.push({
                 id: index + 1,
                 key: pathVarName,
-                value: '',
-                description: ""
+                value: pathParams.find(param => param.key === pathVarName)?.value || '',
+                description: pathParams.find(param => param.key === pathVarName)?.description || "",
             });
         });
     }
     
-    const queryParams: KeyValuePair[] = prepareParameters(operation.parameters, 'query');
-    const headers: KeyValuePair[] = prepareParameters(operation.parameters, 'header');
     const { contentType, body } = prepareRequestBody(operation);
     
     const requestData: RQAPI.HttpRequest = {
