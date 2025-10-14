@@ -1,7 +1,7 @@
 import { ImportFile } from "../types";
 import { OpenAPIV3 } from 'openapi-types';
 import { parse as parseYaml } from 'yaml';
-import { unthrowableParseJson, getParamType, getParamValue, ParamValue } from "./utils";
+import { unthrowableParseJson, getParamValue } from "./utils";
 import { RQAPI,RequestMethod, KeyValuePair, RequestContentType, Authorization, EnvironmentVariables, EnvironmentData, EnvironmentVariableType } from "@requestly/shared/types/entities/apiClient";
 import { PathGroupMap } from "./types";
 import { ApiClientImporterMethod } from "~/importers/types";
@@ -80,13 +80,23 @@ const createAuthConfig = (operation: OpenAPIV3.OperationObject, specData: OpenAP
             case "apiKey":
                 return {
                     currentAuthType: Authorization.Type.API_KEY,
-                    authConfigStore: {}
+                    authConfigStore: {
+                        [Authorization.Type.API_KEY]: {
+                            key: schemeData.name,
+                            value: "",
+                            addTo: schemeData.in === "header" ?  "HEADER": "QUERY"
+                        }
+                    }
                 }
             case "http":
                 if(schemeData.scheme === "bearer"){
                     return {
                         currentAuthType: Authorization.Type.BEARER_TOKEN,
-                        authConfigStore: {}
+                        authConfigStore: {
+                            [Authorization.Type.BEARER_TOKEN]: {
+                                bearer: schemeData.bearerFormat || ""
+                            }
+                        }
                     }
                 }
                 else if(schemeData.scheme === "basic"){
@@ -131,22 +141,38 @@ const createAuthConfig = (operation: OpenAPIV3.OperationObject, specData: OpenAP
     return authConfig;
 }
 
-export const prepareParameters = (parameters: (OpenAPIV3.ParameterObject| OpenAPIV3.ReferenceObject)[] | undefined, parameterType: 'query' | 'header'): KeyValuePair[] => {
-    if(!parameters) return [];
-    const filteredParams: KeyValuePair[] = parameters.map((param: any, index: number) => {
-        if (typeof param === 'object' && 'in' in param && param.in === parameterType) {
-            const paramSchema = param.schema as OpenAPIV3.SchemaObject;
-            if(!param.name) return undefined;
-            return {
+export const prepareParameters = (parameters: OpenAPIV3.ParameterObject[] | undefined): { queryParams: KeyValuePair[], headers: KeyValuePair[], pathParams: RQAPI.PathVariable[] } => {
+    if(!parameters) return { queryParams: [], headers: [], pathParams: [] };
+    const queryParams: KeyValuePair[] = [];
+    const headers: KeyValuePair[] = [];
+    const pathParams: RQAPI.PathVariable[] = [];
+    parameters.forEach((param: OpenAPIV3.ParameterObject, index: number) => {
+        if(param.in === 'query'){
+            queryParams.push({
                 id: index + 1,
                 key: param.name,
-                value: String(getParamValue(paramSchema)),
-                isEnabled: true,
-            };
+                value: String(getParamValue(param.schema)),
+                isEnabled: true
+            });
         }
-        return undefined;
-    }).filter(Boolean) as KeyValuePair[];
-    return filteredParams;
+        else if(param.in === 'header'){
+            headers.push({
+                id: index + 1,
+                key: param.name,
+                value: String(getParamValue(param.schema)),
+                isEnabled: true
+            });
+        }
+        else if(param.in === 'path'){
+            pathParams.push({
+                id: index + 1,
+                key: param.name,
+                value: String(getParamValue(param.schema)),
+                description: param.description || ""
+            });
+        }
+    });
+    return { queryParams, headers, pathParams };
 }
 
 
@@ -307,6 +333,7 @@ const createApiRecord = (
     const resolvedPath = path.replace(/\{([^}]+)\}/g, ':$1');
     const fullUrl = `{{base_url}}${resolvedPath}`;
     
+    const {queryParams, headers, pathParams} = prepareParameters(operation.parameters as OpenAPIV3.ParameterObject[]);
     const pathVariables: RQAPI.PathVariable[] = [];
     const pathVarMatches = path.match(/\{([^}]+)\}/g);
     if (pathVarMatches) {
@@ -315,14 +342,12 @@ const createApiRecord = (
             pathVariables.push({
                 id: index + 1,
                 key: pathVarName,
-                value: '',
-                description:""
+                value: pathParams.find(param => param.key === pathVarName)?.value || '',
+                description: pathParams.find(param => param.key === pathVarName)?.description || ""
             });
         });
     }
     
-    const queryParams: KeyValuePair[] = prepareParameters(operation.parameters, 'query');
-    const headers: KeyValuePair[] = prepareParameters(operation.parameters, 'header');
     const { contentType, bodyContainer } = prepareRequestBody(operation);
     
     const httpRequest: RQAPI.HttpRequest = {

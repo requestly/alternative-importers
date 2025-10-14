@@ -1,4 +1,3 @@
-
 export const unthrowableParseJson = (rawData: string) => {
   try {
     return JSON.parse(rawData);
@@ -51,6 +50,10 @@ export const getParamValue = (paramSchema: any): ParamValue => {
 
   if (paramSchema.default !== undefined) {
     return paramSchema.default;
+  }
+
+  if(paramSchema.example !== undefined) {
+    return paramSchema.example;
   }
 
   if (paramSchema.enum && paramSchema.enum.length > 0) {
