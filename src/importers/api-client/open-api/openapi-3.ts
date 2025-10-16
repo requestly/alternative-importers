@@ -284,11 +284,7 @@ const getRawTextFromSchema = (schema: OpenAPIV3.SchemaObject): string => {
     return schema.example ?? schema.default ?? '';
 }
 
-<<<<<<< Updated upstream
-const prepareRequestBody = (operation: OpenAPIV3.OperationObject): { contentType: RequestContentType; bodyContainer: RQAPI.RequestBodyContainer } => {
-=======
 export const prepareRequestBody = (operation: OpenAPIV3.OperationObject): { contentType: RequestContentType; bodyContainer: RQAPI.RequestBodyContainer; body: RQAPI.RequestBody | null } => {
->>>>>>> Stashed changes
     const requestBody = operation.requestBody as OpenAPIV3.RequestBodyObject;
     let body :RQAPI.RequestBody | null = null;
     const bodyContainer: RQAPI.RequestBodyContainer = {
