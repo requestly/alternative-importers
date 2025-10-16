@@ -284,8 +284,13 @@ const getRawTextFromSchema = (schema: OpenAPIV3.SchemaObject): string => {
     return schema.example ?? schema.default ?? '';
 }
 
+<<<<<<< Updated upstream
 const prepareRequestBody = (operation: OpenAPIV3.OperationObject): { contentType: RequestContentType; bodyContainer: RQAPI.RequestBodyContainer } => {
+=======
+export const prepareRequestBody = (operation: OpenAPIV3.OperationObject): { contentType: RequestContentType; bodyContainer: RQAPI.RequestBodyContainer; body: RQAPI.RequestBody | null } => {
+>>>>>>> Stashed changes
     const requestBody = operation.requestBody as OpenAPIV3.RequestBodyObject;
+    let body :RQAPI.RequestBody | null = null;
     const bodyContainer: RQAPI.RequestBodyContainer = {
         text: '',
         form: [],
@@ -294,34 +299,44 @@ const prepareRequestBody = (operation: OpenAPIV3.OperationObject): { contentType
     let contentType: RequestContentType | null = null;
     
     if (!requestBody?.content) {
-        return { contentType: RequestContentType.RAW, bodyContainer };
+        return { contentType: RequestContentType.RAW, bodyContainer, body: null };
     }
     
     const content = requestBody.content;
 
     if(content[RequestContentType.RAW]){
         contentType = RequestContentType.RAW;
-        bodyContainer.text = getRawTextFromSchema(content[RequestContentType.RAW].schema as OpenAPIV3.SchemaObject);
+        const parsedBody = getRawTextFromSchema(content[RequestContentType.RAW].schema as OpenAPIV3.SchemaObject);
+        bodyContainer.text = parsedBody;
+        body = parsedBody;
     }
     
     if (content[RequestContentType.JSON]) {
         contentType = RequestContentType.JSON;
-        bodyContainer.text = getJsonRequestBody(content[RequestContentType.JSON].schema as OpenAPIV3.SchemaObject);
+        const parsedBody = getJsonRequestBody(content[RequestContentType.JSON].schema as OpenAPIV3.SchemaObject);
+        bodyContainer.text = parsedBody;
+        body = parsedBody;
+        
     }
     
     if (content[RequestContentType.FORM]) {
         contentType = RequestContentType.FORM;
-        bodyContainer.form = getUrlEncodedRequestBody(content[RequestContentType.FORM].schema as OpenAPIV3.SchemaObject);
+        const parsedBody = getUrlEncodedRequestBody(content[RequestContentType.FORM].schema as OpenAPIV3.SchemaObject);
+        bodyContainer.form = parsedBody;
+        body = parsedBody;
     }
     
     if (content[RequestContentType.MULTIPART_FORM]) {
         contentType = RequestContentType.MULTIPART_FORM;
+        const parsedBody = getMultipartFormRequestBody(content[RequestContentType.MULTIPART_FORM].schema as OpenAPIV3.SchemaObject);
+        bodyContainer.multipartForm = parsedBody;
         bodyContainer.multipartForm = getMultipartFormRequestBody(content[RequestContentType.MULTIPART_FORM].schema as OpenAPIV3.SchemaObject);
+        body = parsedBody;
     }
     
 
     
-    return { contentType: contentType || RequestContentType.RAW, bodyContainer };
+    return { contentType: contentType || RequestContentType.RAW, bodyContainer, body };
 }
 
 const createApiRecord = (
@@ -349,7 +364,7 @@ const createApiRecord = (
         });
     }
     
-    const { contentType, bodyContainer } = prepareRequestBody(operation);
+    const { contentType, bodyContainer, body } = prepareRequestBody(operation);
     
     const httpRequest: RQAPI.HttpRequest = {
         url: fullUrl,
@@ -363,6 +378,8 @@ const createApiRecord = (
         saving the record in firestore DB because it firebase does not allow undefiend values in documents.
         We need to fix this by adding a default value for body in the types or giving a null value to body
         */
+        // @ts-ignore
+        body,
         bodyContainer,
         contentType,
         includeCredentials: false
