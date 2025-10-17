@@ -3,7 +3,7 @@ import { OpenAPIV2 } from 'openapi-types';
 import { parse as parseYaml } from 'yaml';
 import { unthrowableParseJson, getParamValue } from "./utils";
 import { RQAPI, RequestMethod, KeyValuePair, RequestContentType, Authorization } from "@requestly/shared/types/entities/apiClient";
-import { PathGroupMap } from "./types";
+import { PathGroupMap, NestedCollectionMap } from "./types";
 import { ApiClientImporterMethod } from "~/importers/types";
 
 const SwaggerParser = require("@apidevtools/swagger-parser");
@@ -28,31 +28,54 @@ const getDescriptionFromTags = (tags: OpenAPIV2.TagObject[], basePath: string): 
     return tags.find(tag => tag.name === basePath.split('/')[1])?.description || "Collection for " + basePath + " endpoints";
 }
 
-const groupPaths = (specData: OpenAPIV2.Document): PathGroupMap => {
-    const pathGroups: PathGroupMap = {};
+const buildNestedCollections = (specData: OpenAPIV2.Document): NestedCollectionMap => {
+    const collections: NestedCollectionMap = {};
     
-    if (specData.paths) {
-        Object.entries(specData.paths).forEach(([path, pathItem]) => {
-            if (pathItem) {
-                const collectionGroup = path.split('/').slice(0, 2).join('/');
-                
-                if (!pathGroups[collectionGroup]) {
-                    pathGroups[collectionGroup] = [];
-                }
-                
-                const methods = Object.keys(pathItem).filter(method => 
-                    ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'].includes(method.toLowerCase())
-                );
-                
-                pathGroups[collectionGroup].push({ 
-                    path,
-                    methods: methods.map(m => m.toUpperCase())
-                });
-            }
-        });
+    if (!specData.paths) {
+        return collections;
     }
     
-    return pathGroups;
+    Object.entries(specData.paths).forEach(([path, pathItem]) => {
+        if (!pathItem) return;
+        
+        const pathSegments = path.split('/').filter(segment => segment !== '');
+        const methods = Object.keys(pathItem).filter(method => 
+            ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'].includes(method.toLowerCase())
+        );
+        
+        const pathGroup = {
+            path,
+            methods: methods.map(m => m.toUpperCase())
+        };
+        
+        let currentLevel = collections;
+        let currentPath = '';
+        
+        for (let i = 0; i < pathSegments.length; i++) {
+            const segment = pathSegments[i];
+            const isParameter = segment.startsWith('{') && segment.endsWith('}');
+            const collectionName = isParameter ? segment : segment;
+            const fullPath = currentPath + '/' + segment;
+            
+            if (!currentLevel[collectionName]) {
+                currentLevel[collectionName] = {
+                    name: collectionName,
+                    path: fullPath,
+                    children: {},
+                    requests: []
+                };
+            }
+            
+            if (i === pathSegments.length - 1) {
+                currentLevel[collectionName].requests.push(pathGroup);
+            } else {
+                currentLevel = currentLevel[collectionName].children;
+                currentPath = fullPath;
+            }
+        }
+    });
+    
+    return collections;
 }
 
 const createAuthConfig = (operation: OpenAPIV2.OperationObject, specData: OpenAPIV2.Document): RQAPI.Auth => {
@@ -241,21 +264,18 @@ const createApiRecord = (
     return apiRecord;
 }
 
-const parseSpecification = (specData: OpenAPIV2.Document): RQAPI.CollectionRecord => {
-    const currentTimestamp = Date.now();
+const convertNestedCollectionToRQAPI = (
+    collection: NestedCollectionMap,
+    specData: OpenAPIV2.Document,
+    currentTimestamp: number
+): RQAPI.CollectionRecord[] => {
+    const result: RQAPI.CollectionRecord[] = [];
     
-    const baseUrl = extractBaseUrl(specData);
-    
-    const pathGroups = groupPaths(specData);
-    
-    const childCollections: RQAPI.CollectionRecord[] = [];
-    
-    Object.entries(pathGroups).forEach(([basePath, paths]) => {
-        const collectionName = basePath.split('/')[1];
-        
+    Object.values(collection).forEach(nestedCollection => {
         const apiRecords: RQAPI.ApiRecord[] = [];
         
-        paths.forEach(({ path, methods }) => {
+        // Add requests from this collection
+        nestedCollection.requests.forEach(({ path, methods }) => {
             methods.forEach(method => {
                 const operation = (specData.paths?.[path] as any)?.[method.toLowerCase()];
                 if (operation) {
@@ -270,10 +290,17 @@ const parseSpecification = (specData: OpenAPIV2.Document): RQAPI.CollectionRecor
             });
         });
         
-        const pathCollection: RQAPI.CollectionRecord = {
+        // Recursively convert child collections
+        const childCollections = convertNestedCollectionToRQAPI(
+            nestedCollection.children,
+            specData,
+            currentTimestamp
+        );
+        
+        const collectionRecord: RQAPI.CollectionRecord = {
             id: "",
-            name: collectionName,
-            description: getDescriptionFromTags(specData.tags || [], basePath),
+            name: nestedCollection.name,
+            description: getDescriptionFromTags(specData.tags || [], nestedCollection.path),
             collectionId: "",
             isExample: false,
             ownerId: '',
@@ -284,7 +311,7 @@ const parseSpecification = (specData: OpenAPIV2.Document): RQAPI.CollectionRecor
             updatedTs: currentTimestamp,
             type: RQAPI.RecordType.COLLECTION,
             data: {
-                children: apiRecords,
+                children: [...apiRecords, ...childCollections],
                 scripts: {
                     preRequest: '',
                     postResponse: ''
@@ -297,8 +324,23 @@ const parseSpecification = (specData: OpenAPIV2.Document): RQAPI.CollectionRecor
             }
         };
         
-        childCollections.push(pathCollection);
+        result.push(collectionRecord);
     });
+    
+    return result;
+};
+
+const parseSpecification = (specData: OpenAPIV2.Document): RQAPI.CollectionRecord => {
+    const currentTimestamp = Date.now();
+    
+    const baseUrl = extractBaseUrl(specData);
+    
+    const nestedCollections = buildNestedCollections(specData);
+    const childCollections = convertNestedCollectionToRQAPI(
+        nestedCollections,
+        specData,
+        currentTimestamp
+    );
     
     const rootCollection: RQAPI.CollectionRecord = {
         id: "",
