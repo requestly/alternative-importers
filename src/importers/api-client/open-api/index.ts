@@ -6,13 +6,6 @@ import { ApiClientImporterOutput } from '~/importers/types';
 
 
 export const openApiImporter = async (specs: ImportFile): Promise<ApiClientImporterOutput> => {
-    console.log("Starting API spec parsing...");
-    console.log("Input specs file:", {
-        name: specs.name,
-        type: specs.type,
-        contentLength: specs.content.length
-    });
-
     const importers = [
         openApi3Importer,
         swagger2Importer
@@ -22,7 +15,6 @@ export const openApiImporter = async (specs: ImportFile): Promise<ApiClientImpor
     for (const importer of importers) {
         try {
             const result = await importer.convert(specs);
-            console.log("Collection record:", result);
             return result;
         } catch (error) {
             throw error;
