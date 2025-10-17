@@ -10,6 +10,7 @@ export default {
   input: {
     index: "src/index.ts",
   },
+  external: ["yaml"],
 
   output: [
     {
@@ -35,7 +36,7 @@ export default {
     commonjs(),
     babel({
       babelHelpers: "bundled",
-      exclude: "node_modules/**",
+      exclude: ["node_modules/**", "**/@readme/openapi-parser/**"],
       presets: ["@babel/preset-env"],
     }),
   ],
