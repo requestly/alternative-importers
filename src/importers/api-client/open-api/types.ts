@@ -3,7 +3,6 @@
     methods: string[];
 }
 
-export type PathGroupMap = Record<string, PathGroup[]>;
 
 type NestedCollection = {
     name: string;

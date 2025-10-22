@@ -3,10 +3,10 @@ import { OpenAPIV3 } from 'openapi-types';
 import { parse as parseYaml } from 'yaml';
 import { unthrowableParseJson, getParamValue } from "./utils";
 import { RQAPI,RequestMethod, KeyValuePair, RequestContentType, Authorization, EnvironmentVariables, EnvironmentData, EnvironmentVariableType } from "@requestly/shared/types/entities/apiClient";
-import { PathGroupMap, NestedCollectionMap } from "./types";
+import { NestedCollectionMap } from "./types";
 import { ApiClientImporterMethod } from "~/importers/types";
 
-const SwaggerParser = require("@apidevtools/swagger-parser");
+import SwaggerParser from "@apidevtools/swagger-parser";
 
 const SUPPORTED_OPENAPI_SPEC_VERSION= /^3\.\d+\.\d+$/;
 

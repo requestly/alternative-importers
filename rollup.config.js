@@ -32,7 +32,9 @@ export default {
     }),
     json(),
     typescript(),
-    nodeResolve(),
+    nodeResolve({
+      browser: true,
+    }),
     commonjs(),
     babel({
       babelHelpers: "bundled",
