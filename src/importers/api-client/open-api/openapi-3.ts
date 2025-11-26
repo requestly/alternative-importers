@@ -565,6 +565,10 @@ export const convert: ApiClientImporterMethod<ImportFile> = async(specFile: Impo
         specData  = (await SwaggerParser.validate(specData,{
             dereference: {
                 circular: "ignore"
+            },
+            validate: {
+                schema: false,
+                spec: true    
             }
         })) as OpenAPIV3.Document;
 
