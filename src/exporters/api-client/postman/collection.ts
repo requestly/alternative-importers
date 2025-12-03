@@ -18,6 +18,7 @@ interface RQHeader {
   value: string;
   isEnabled?: boolean;
   type?: string;
+  description?: string;
 }
 
 interface RQQueryParam {
@@ -25,6 +26,7 @@ interface RQQueryParam {
   key: string;
   value: string;
   isEnabled: boolean;
+  description?: string;
 }
 
 interface RQFormField {
@@ -122,6 +124,7 @@ interface PostmanHeader {
   value: string;
   type?: string;
   disabled?: boolean;
+  description?: string;
 }
 
 interface PostmanQueryParam {
@@ -436,6 +439,7 @@ function convertRequest(
       key: param.key,
       value: param.value,
       disabled: !param.isEnabled,
+      description: param.description,
     });
   });
 
@@ -446,6 +450,7 @@ function convertRequest(
     value: header.value,
     type: header.type || "text",
     disabled: !header.isEnabled,
+    description: header.description,
   }));
 
   let body: PostmanBody | undefined;
