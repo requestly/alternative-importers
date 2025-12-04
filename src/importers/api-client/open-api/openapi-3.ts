@@ -175,7 +175,8 @@ export const prepareParameters = (parameters: OpenAPIV3.ParameterObject[] | unde
                 id: index + 1,
                 key: param.name,
                 value: String(getParamValue(param.schema)),
-                isEnabled: true
+                isEnabled: true,
+                description: param.description || "",
             });
         }
         else if(param.in === 'header'){
@@ -183,7 +184,8 @@ export const prepareParameters = (parameters: OpenAPIV3.ParameterObject[] | unde
                 id: index + 1,
                 key: param.name,
                 value: String(getParamValue(param.schema)),
-                isEnabled: true
+                isEnabled: true,
+                description: param.description || "",
             });
         }
         else if(param.in === 'path'){
