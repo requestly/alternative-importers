@@ -147,6 +147,7 @@ const prepareParameters = (parameters:OpenAPIV2.ParameterObject[]): { queryParam
                 key: param.name || '',
                 value: String(getParamValue(param.schema)),
                 isEnabled: true,
+                description: param.description || "",
             });
         }
         else if(param.in === 'header'){
@@ -155,6 +156,7 @@ const prepareParameters = (parameters:OpenAPIV2.ParameterObject[]): { queryParam
                 key: param.name || '',
                 value: String(getParamValue(param.schema)),
                 isEnabled: true,
+                description: param.description || "",
             });
         }
         else if(param.in === 'path'){
