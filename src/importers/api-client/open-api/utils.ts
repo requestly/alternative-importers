@@ -1,3 +1,5 @@
+import { ValueType } from "@requestly/shared/types/entities/apiClient";
+
 export const unthrowableParseJson = (rawData: string) => {
   try {
     return JSON.parse(rawData);
@@ -62,4 +64,8 @@ export const getParamValue = (paramSchema: any): ParamValue => {
 
   const paramType = getParamType(paramSchema);
   return getDefaultValueForType(paramType, paramSchema);
+};
+
+export const isValueType = (value: string): value is ValueType => {
+  return Object.values(ValueType).includes(value as ValueType);
 };

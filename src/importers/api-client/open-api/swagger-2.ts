@@ -1,8 +1,8 @@
 import { ImportFile } from "../types";
 import { OpenAPIV2 } from 'openapi-types';
 import { parse as parseYaml } from 'yaml';
-import { unthrowableParseJson, getParamValue } from "./utils";
-import { RQAPI, RequestMethod, KeyValuePair, RequestContentType, Authorization } from "@requestly/shared/types/entities/apiClient";
+import { unthrowableParseJson, getParamValue, getParamType, isValueType } from "./utils";
+import { RQAPI, RequestMethod, KeyValuePair, RequestContentType, Authorization, ValueType } from "@requestly/shared/types/entities/apiClient";
 import { NestedCollectionMap } from "./types";
 import { ApiClientImporterMethod } from "~/importers/types";
 import SwaggerParser from "@apidevtools/swagger-parser";
@@ -142,21 +142,25 @@ const prepareParameters = (parameters:OpenAPIV2.ParameterObject[]): { queryParam
     
     parameters.forEach((param: OpenAPIV2.ParameterObject, index: number) => {
         if(param.in === 'query'){
+            const valueType = getParamType(param.schema).replace(/^./, (char) => char.toUpperCase());
             queryParams.push({
                 id: index + 1,
                 key: param.name || '',
                 value: String(getParamValue(param.schema)),
                 isEnabled: true,
                 description: param.description || "",
+                dataType: isValueType(valueType) ? valueType : ValueType.STRING,
             });
         }
         else if(param.in === 'header'){
+            const valueType = getParamType(param.schema).replace(/^./, (char) => char.toUpperCase());
             headers.push({
                 id: index + 1,
                 key: param.name || '',
                 value: String(getParamValue(param.schema)),
                 isEnabled: true,
                 description: param.description || "",
+                dataType: isValueType(valueType) ? valueType : ValueType.STRING,
             });
         }
         else if(param.in === 'path'){
