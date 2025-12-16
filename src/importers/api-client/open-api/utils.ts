@@ -1,4 +1,4 @@
-import { ValueType } from "@requestly/shared/types/entities/apiClient";
+import { KeyValueDataType } from "@requestly/shared/types/entities/apiClient";
 
 export const unthrowableParseJson = (rawData: string) => {
   try {
@@ -66,6 +66,20 @@ export const getParamValue = (paramSchema: any): ParamValue => {
   return getDefaultValueForType(paramType, paramSchema);
 };
 
-export const isValueType = (value: string): value is ValueType => {
-  return Object.values(ValueType).includes(value as ValueType);
+export const getKeyValueDataTypeFromParam = (paramSchema: any): KeyValueDataType => {
+  if (paramSchema) {
+    switch (paramSchema.type) {
+      case "string":
+        return KeyValueDataType.STRING;
+      case "integer":
+        return KeyValueDataType.INTEGER;
+      case "boolean":
+        return KeyValueDataType.BOOLEAN;
+      case "number":
+        return KeyValueDataType.NUMBER;
+      default:
+        return KeyValueDataType.STRING;
+    }
+  }
+  return KeyValueDataType.STRING;
 };

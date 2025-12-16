@@ -1,8 +1,8 @@
 import { ImportFile } from "../types";
 import { OpenAPIV3 } from 'openapi-types';
 import { parse as parseYaml } from 'yaml';
-import { unthrowableParseJson, getParamValue, getParamType, isValueType } from "./utils";
-import { RQAPI,RequestMethod, KeyValuePair, RequestContentType, Authorization, EnvironmentVariables, EnvironmentData, EnvironmentVariableType, ValueType } from "@requestly/shared/types/entities/apiClient";
+import { unthrowableParseJson, getParamValue, getKeyValueDataTypeFromParam } from "./utils";
+import { RQAPI,RequestMethod, KeyValuePair, RequestContentType, Authorization, EnvironmentVariables, EnvironmentData, EnvironmentVariableType } from "@requestly/shared/types/entities/apiClient";
 import { NestedCollectionMap } from "./types";
 import { ApiClientImporterMethod } from "~/importers/types";
 
@@ -171,25 +171,23 @@ export const prepareParameters = (parameters: OpenAPIV3.ParameterObject[] | unde
     const pathParams: RQAPI.PathVariable[] = [];
     parameters.forEach((param: OpenAPIV3.ParameterObject, index: number) => {
         if(param.in === 'query'){
-            const valueType = getParamType(param.schema).replace(/^./, (char) => char.toUpperCase());
             queryParams.push({
                 id: index + 1,
                 key: param.name,
                 value: String(getParamValue(param.schema)),
                 isEnabled: true,
                 description: param.description || "",
-                dataType: isValueType(valueType) ? valueType : ValueType.STRING,
+                dataType: getKeyValueDataTypeFromParam(param.schema),
             });
         }
         else if(param.in === 'header'){
-            const valueType = getParamType(param.schema).replace(/^./, (char) => char.toUpperCase());
             headers.push({
                 id: index + 1,
                 key: param.name,
                 value: String(getParamValue(param.schema)),
                 isEnabled: true,
                 description: param.description || "",
-                dataType: isValueType(valueType) ? valueType : ValueType.STRING,
+                dataType: getKeyValueDataTypeFromParam(param.schema),
             });
         }
         else if(param.in === 'path'){
