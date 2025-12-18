@@ -67,7 +67,7 @@ export const getParamValue = (paramSchema: any): ParamValue => {
 };
 
 export const getKeyValueDataTypeFromParam = (paramSchema: any): KeyValueDataType => {
-  if (paramSchema) {
+  if (paramSchema && paramSchema.type) {
     switch (paramSchema.type) {
       case "string":
         return KeyValueDataType.STRING;
