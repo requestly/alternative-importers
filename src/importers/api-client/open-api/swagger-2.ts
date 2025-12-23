@@ -1,8 +1,8 @@
 import { ImportFile } from "../types";
 import { OpenAPIV2 } from 'openapi-types';
 import { parse as parseYaml } from 'yaml';
-import { unthrowableParseJson, getParamValue } from "./utils";
-import { RQAPI, RequestMethod, KeyValuePair, RequestContentType, Authorization } from "@requestly/shared/types/entities/apiClient";
+import { unthrowableParseJson, getParamValue, getKeyValueDataTypeFromParam } from "./utils";
+import { RQAPI, RequestMethod, KeyValuePair, RequestContentType, Authorization, KeyValueDataType } from "@requestly/shared/types/entities/apiClient";
 import { NestedCollectionMap } from "./types";
 import { ApiClientImporterMethod } from "~/importers/types";
 import SwaggerParser from "@apidevtools/swagger-parser";
@@ -148,6 +148,7 @@ const prepareParameters = (parameters:OpenAPIV2.ParameterObject[]): { queryParam
                 value: String(getParamValue(param.schema)),
                 isEnabled: true,
                 description: param.description || "",
+                dataType: getKeyValueDataTypeFromParam(param.schema),
             });
         }
         else if(param.in === 'header'){
@@ -157,6 +158,7 @@ const prepareParameters = (parameters:OpenAPIV2.ParameterObject[]): { queryParam
                 value: String(getParamValue(param.schema)),
                 isEnabled: true,
                 description: param.description || "",
+                dataType: getKeyValueDataTypeFromParam(param.schema),
             });
         }
         else if(param.in === 'path'){
@@ -165,6 +167,7 @@ const prepareParameters = (parameters:OpenAPIV2.ParameterObject[]): { queryParam
                 key: param.name || '',
                 value: String(getParamValue(param.schema)),
                 description: param.description || "",
+                dataType: getKeyValueDataTypeFromParam(param.schema),
             });
         }
     });
@@ -216,6 +219,7 @@ const createApiRecord = (
                 key: pathVarName,
                 value: pathParams.find(param => param.key === pathVarName)?.value || '',
                 description: pathParams.find(param => param.key === pathVarName)?.description || "",
+                dataType: pathParams.find(param => param.key === pathVarName)?.dataType || KeyValueDataType.STRING,
             });
         });
     }
