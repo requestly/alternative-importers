@@ -369,7 +369,6 @@ const createApiRecord = (
     method: RequestMethod,
     specData: OpenAPIV3.Document
 ): RQAPI.ApiRecord => {
-    console.log("Creating API record for operation:", operation);
     const resolvedPath = path.replace(/\{([^}]+)\}/g, ':$1');
     const fullUrl = `{{base_url}}${resolvedPath}`;
     
@@ -425,7 +424,7 @@ const createApiRecord = (
 
     const apiRecord: RQAPI.ApiRecord = {
         id: "",
-        name: operation.summary || `${path}`,
+        name: operation.summary ||operation?.operationId ||`${method} ${path}`,
         description: operation.description || '',
         collectionId: "",
         isExample: false,
@@ -578,7 +577,6 @@ export const convert: ApiClientImporterMethod<ImportFile> = async(specFile: Impo
             }
         })) as OpenAPIV3.Document;
 
-        console.log("Spec data:", specData);
 
         const environments = parseServerEnvironments(specData.servers, specData.info.title);
         const collectionRecord = parseSpecification(specData);
