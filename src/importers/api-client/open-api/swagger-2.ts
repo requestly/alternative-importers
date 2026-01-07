@@ -396,8 +396,6 @@ export const convert: ApiClientImporterMethod<ImportFile> = async(specFile: Impo
             }
         })) as OpenAPIV2.Document;
 
-        console.log("🔍 Swagger 2.0 Spec data:", specData);
-
         const collectionRecord = parseSpecification(specData);
         return {
             data: {
