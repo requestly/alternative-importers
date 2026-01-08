@@ -5,7 +5,12 @@
   "main": "dist/index.cjs.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "rimraf ./dist && rollup -c --bundleConfigAsCjs"
+    "build": "rimraf ./dist && rollup -c --bundleConfigAsCjs",
+    "release": "release-it"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/requestly/alternative-importers.git"
   },
   "author": "",
   "license": "ISC",
@@ -26,6 +31,7 @@
   },
   "devDependencies": {
     "@babel/preset-env": "^7.28.3",
+    "@release-it/conventional-changelog": "^8.0.2",
     "@rollup/plugin-alias": "^5.1.1",
     "@rollup/plugin-babel": "^6.0.4",
     "@rollup/plugin-commonjs": "^28.0.3",
@@ -34,6 +40,7 @@
     "@rollup/plugin-typescript": "^12.1.2",
     "@rollup/plugin-yaml": "^4.1.2",
     "@types/node": "^24.2.0",
+    "release-it": "^17.10.0",
     "rimraf": "^5.0.10",
     "rollup": "^4.41.0",
     "tslib": "^2.8.1",
