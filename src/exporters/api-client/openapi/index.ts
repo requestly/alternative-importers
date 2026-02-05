@@ -36,7 +36,7 @@ function parseUrl(url: string): {
     const urlObj = new URL(processedUrl);
     const protocol = urlObj.protocol.replace(":", "");
     const host = urlObj.hostname + (urlObj.port ? `:${urlObj.port}` : "");
-    const path = urlObj.pathname;
+    const path = decodeURIComponent(urlObj.pathname);
     const queryString = urlObj.search.substring(1); // Remove '?'
 
     return { protocol, host, path, queryString };
@@ -68,19 +68,22 @@ function convertPathVariables(
   const parameters: OpenAPIV3.ParameterObject[] = [];
 
   // Convert {{variable}} to {variable} and collect parameters
-  const openApiPath = path.replace(/\{\{([^}]+)\}\}/g, (_, varName) => {
-    const pathVar = pathVariables?.find((pv) => pv.key === varName);
+  const openApiPath = path.replace(/\{\{([^}]+)\}\}|:([a-zA-Z_][a-zA-Z0-9_]*)/g, (_, var1, var2) => {
+    const varName = var1 || var2;
+    // Only add parameter if we haven't seen it before
+    if (!parameters.find((p) => p.name === varName)) {
+        const pathVar = pathVariables?.find((pv) => pv.key === varName);
 
-    parameters.push({
-      name: varName,
-      in: "path",
-      required: true,
-      schema: {
-        type: "string",
-      },
-      description: pathVar?.description,
-    });
-
+        parameters.push({
+        name: varName,
+        in: "path",
+        required: true,
+        schema: {
+          type: pathVar?.dataType || "string",
+        },
+        description: pathVar?.description,
+      });
+    }
     return `{${varName}}`;
   });
 
@@ -99,7 +102,7 @@ function convertQueryParameters(
       name: param.key,
       in: "query" as const,
       schema: {
-        type: "string",
+        type: param.dataType,
       },
       description: param.description,
       example: param.value || undefined,
@@ -307,7 +310,8 @@ function convertAuthToSecurityScheme(
     case Authorization.Type.API_KEY: {
       const config = auth.authConfigStore[Authorization.Type.API_KEY];
       if (config) {
-        const schemeName = `apiKey_${config.key}`;
+        const sanitizedName = config.key.replace(/[^a-zA-Z0-9]/g, "_");
+        const schemeName = `apiKey_${sanitizedName}`;
         return {
           schemeName,
           scheme: {
@@ -503,7 +507,6 @@ export function convertToOpenAPI(
   return openApiDoc;
 }
 
-
 interface OpenAPIExportResult {
   file: {
     fileName: string;
@@ -534,8 +537,7 @@ export function exportCollectionToOpenAPI(
   }
 
   // Generate sanitized filename from collection name
-  const sanitizedName = collectionRecord.name
-    .replace(/[^a-z0-9]/gi, "-")
+  const sanitizedName = collectionRecord.name.replace(/[^a-z0-9]/gi, "-");
   const baseFileName = sanitizedName || "openapi";
 
   // Create JSON version
