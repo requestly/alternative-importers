@@ -7,8 +7,6 @@ import {
 import type { OpenAPIV3 } from "openapi-types";
 import { stringify as yamlStringify } from "yaml";
 
-
-
 /**
  * Type representing a flattened record with hierarchy information
  */
@@ -391,7 +389,12 @@ function flattenCollection(
   for (const child of collection.children) {
     if (child.type === RQAPI.RecordType.COLLECTION) {
       // For collections, pass down auth and recurse
-      const collectionAuth = child.data.auth || parentAuth;
+      const childAuth = child.data.auth;
+      const collectionAuth =
+        !childAuth || childAuth.currentAuthType === Authorization.Type.INHERIT
+          ? parentAuth
+          : childAuth;
+
       result.push({ record: child, parentAuth });
       result.push(...flattenCollection(child.data, collectionAuth));
     } else if (child.type === RQAPI.RecordType.API) {
@@ -498,14 +501,15 @@ function processRequest(
  * Main export function to convert Requestly Collection to OpenAPI 3.0
  */
 export function convertToOpenAPI(
-  collection:  RQAPI.CollectionRecord,
+  collection: RQAPI.CollectionRecord,
 ): OpenAPIV3.Document {
   // Create base OpenAPI document
   const openApiDoc: OpenAPIV3.Document = {
     openapi: "3.0.0",
     info: {
       title: collection.name || "Exported API Collection",
-      description: collection.description || "Exported from Requestly API Client",
+      description:
+        collection.description || "Exported from Requestly API Client",
       version: "1.0.0",
     },
     paths: {},
@@ -523,7 +527,10 @@ export function convertToOpenAPI(
   const securitySchemesMap = new Map<string, OpenAPIV3.SecuritySchemeObject>();
 
   // Flatten collection and get all API records
-  const flattenedRecords = flattenCollection(collectionData, collectionData.auth);
+  const flattenedRecords = flattenCollection(
+    collectionData,
+    collectionData.auth,
+  );
 
   // Process each API record
   for (const { record, parentAuth } of flattenedRecords) {
