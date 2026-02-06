@@ -150,6 +150,50 @@ function convertHeaders(
 }
 
 /**
+ * Infer OpenAPI schema from a parsed JSON value
+ */
+function inferSchemaFromValue(value: any): OpenAPIV3.SchemaObject {
+  if (value === null) {
+    return { type: "string", nullable: true };
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return { type: "array", items: {} };
+    }
+    // Infer schema from first item
+    return {
+      type: "array",
+      items: inferSchemaFromValue(value[0]),
+    };
+  }
+
+  const type = typeof value;
+
+  if (type === "object") {
+    const properties: Record<string, OpenAPIV3.SchemaObject> = {};
+    for (const key in value) {
+      properties[key] = inferSchemaFromValue(value[key]);
+    }
+    return {
+      type: "object",
+      properties,
+    };
+  }
+
+  if (type === "number") {
+    return { type: Number.isInteger(value) ? "integer" : "number" };
+  }
+
+  if (type === "boolean") {
+    return { type: "boolean" };
+  }
+
+  // Default to string
+  return { type: "string" };
+}
+
+/**
  * Convert request body to OpenAPI format
  */
 function convertRequestBody(
@@ -167,24 +211,18 @@ function convertRequestBody(
     case RequestContentType.JSON: {
       let schema: OpenAPIV3.SchemaObject = { type: "object" };
 
-      // Try to infer schema from body
+      // Infer schema from body
       if (request.body && typeof request.body === "string") {
         try {
           const parsed = JSON.parse(request.body);
-          // For simplicity, just mark it as object type
-          schema = { type: "object" };
+          schema = inferSchemaFromValue(parsed);
         } catch {
-          // If parsing fails, keep default
+          // If parsing fails, keep generic object schema
         }
       }
 
       content["application/json"] = {
         schema,
-        example: request.body
-          ? typeof request.body === "string"
-            ? request.body
-            : undefined
-          : undefined,
       };
       break;
     }
