@@ -1,8 +1,9 @@
 import { z, ZodType } from "zod";
+import { BaseImporterOutput } from "../types";
 
 /**
  * I - Zod schema for input data
- * O - Output type after conversion
+ * O - Output Entity schema after conversion
  */
 abstract class BaseImporter<
   I extends ZodType,
@@ -23,12 +24,17 @@ abstract class BaseImporter<
     return this.schema.parse(data);
   }
 
-  abstract convert(data: z.infer<I>): Promise<O>;
+  abstract convert(data: z.infer<I>): Promise<BaseImporterOutput<O>>;
 
-  async import(data: z.infer<I>): Promise<O> {
+  async import(data: z.infer<I>): Promise<BaseImporterOutput<O>> {
     const parsedData = this.parse(data);
     const convertedData = await this.convert(parsedData);
-    return convertedData;
+    return {
+      data: convertedData.data,
+      notSupportedFeatures: [],
+      errors: [],
+      warnings: [],
+    };
   }
 }
 
