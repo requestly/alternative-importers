@@ -460,14 +460,14 @@ function processRequest(
  * Main export function to convert Requestly Collection to OpenAPI 3.0
  */
 export function convertToOpenAPI(
-  collection: RQAPI.Collection,
+  collection:  RQAPI.CollectionRecord,
 ): OpenAPIV3.Document {
   // Create base OpenAPI document
   const openApiDoc: OpenAPIV3.Document = {
     openapi: "3.0.0",
     info: {
-      title: "Exported API Collection",
-      description: "Exported from Requestly API Client",
+      title: collection.name || "Exported API Collection",
+      description: collection.description || "Exported from Requestly API Client",
       version: "1.0.0",
     },
     paths: {},
@@ -477,13 +477,15 @@ export function convertToOpenAPI(
     },
   };
 
+  const collectionData = collection.data;
+
   // Track paths, servers, and security schemes
   const pathsMap = new Map<string, Set<string>>();
   const serversSet = new Set<string>();
   const securitySchemesMap = new Map<string, OpenAPIV3.SecuritySchemeObject>();
 
   // Flatten collection and get all API records
-  const flattenedRecords = flattenCollection(collection, collection.auth);
+  const flattenedRecords = flattenCollection(collectionData, collectionData.auth);
 
   // Process each API record
   for (const { record, parentAuth } of flattenedRecords) {
@@ -513,83 +515,4 @@ export function convertToOpenAPI(
   }
 
   return openApiDoc;
-}
-
-interface OpenAPIExportResult {
-  file: {
-    fileName: string;
-    content: Blob;
-    type: string;
-  }[];
-  metadata: Array<{
-    key: string;
-    value: string[] | number | string;
-  }>;
-}
-
-/**
- * Export function that takes a CollectionRecord and converts it to OpenAPI
- * Returns both JSON and YAML formats
- */
-export function exportCollectionToOpenAPI(
-  collectionRecord: RQAPI.CollectionRecord,
-): OpenAPIExportResult {
-  const openApiDoc = convertToOpenAPI(collectionRecord.data);
-
-  // Use collection metadata for info
-  if (collectionRecord.name) {
-    openApiDoc.info.title = collectionRecord.name;
-  }
-  if (collectionRecord.description) {
-    openApiDoc.info.description = collectionRecord.description;
-  }
-
-  // Generate sanitized filename from collection name
-  const sanitizedName = collectionRecord.name.replace(/[^a-z0-9]/gi, "-");
-  const baseFileName = sanitizedName || "openapi";
-
-  // Create JSON version
-  const jsonContent = JSON.stringify(openApiDoc, null, 2);
-  const jsonBlob = new Blob([jsonContent], { type: "application/json" });
-
-  // Create YAML version
-  const yamlContent = yamlStringify(openApiDoc);
-  const yamlBlob = new Blob([yamlContent], { type: "application/x-yaml" });
-
-  // Calculate metadata
-
-  const pathCount = Object.keys(openApiDoc.paths || {}).length;
-  const serverCount = openApiDoc.servers?.length || 0;
-  const securitySchemeCount = Object.keys(
-    openApiDoc.components?.securitySchemes || {},
-  ).length;
-
-  return {
-    file: [
-      {
-        fileName: `${baseFileName}.json`,
-        content: jsonBlob,
-        type: "JSON",
-      },
-      {
-        fileName: `${baseFileName}.yaml`,
-        content: yamlBlob,
-        type: "YAML",
-      },
-    ],
-    metadata: [
-      {
-        key: "Paths",
-        value: pathCount,
-      },
-      {
-        key: "Servers",
-        value: serverCount,
-      },
-      {
-        key: "Security schemes",
-        value: securitySchemeCount,
-      },
-    ],
-  };
 }
