@@ -1,0 +1,24 @@
+{
+  "id": "empty-keys-id",
+  "name": "Environment with Empty Keys",
+  "values": [
+    {
+      "key": "",
+      "value": "should-be-filtered",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "validKey",
+      "value": "valid-value",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "",
+      "value": "another-filtered",
+      "type": "secret",
+      "enabled": true
+    }
+  ]
+}

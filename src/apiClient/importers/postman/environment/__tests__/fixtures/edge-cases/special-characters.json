@@ -1,0 +1,30 @@
+{
+  "id": "special-chars-id",
+  "name": "Environment with Special Characters",
+  "values": [
+    {
+      "key": "key-with-dashes",
+      "value": "value1",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "key_with_underscores",
+      "value": "value2",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "key.with.dots",
+      "value": "value3",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "keyWithUnicode🔑",
+      "value": "value with emoji 🚀",
+      "type": "default",
+      "enabled": true
+    }
+  ]
+}

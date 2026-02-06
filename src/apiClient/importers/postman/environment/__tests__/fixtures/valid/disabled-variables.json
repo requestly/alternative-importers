@@ -1,0 +1,18 @@
+{
+  "id": "disabled-vars-id",
+  "name": "Environment with Disabled Variables",
+  "values": [
+    {
+      "key": "enabledVar",
+      "value": "enabled-value",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "disabledVar",
+      "value": "disabled-value",
+      "type": "default",
+      "enabled": false
+    }
+  ]
+}
