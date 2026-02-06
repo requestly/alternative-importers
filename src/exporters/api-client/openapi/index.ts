@@ -36,7 +36,12 @@ function parseUrl(url: string): {
     const urlObj = new URL(processedUrl);
     const protocol = urlObj.protocol.replace(":", "");
     const host = urlObj.hostname + (urlObj.port ? `:${urlObj.port}` : "");
-    const path = decodeURIComponent(urlObj.pathname);
+    let path: string;
+    try {
+      path = decodeURIComponent(urlObj.pathname);
+    } catch {
+      path = urlObj.pathname;
+    }
     const queryString = urlObj.search.substring(1); // Remove '?'
 
     return { protocol, host, path, queryString };
@@ -68,24 +73,27 @@ function convertPathVariables(
   const parameters: OpenAPIV3.ParameterObject[] = [];
 
   // Convert {{variable}} to {variable} and collect parameters
-  const openApiPath = path.replace(/\{\{([^}]+)\}\}|:([a-zA-Z_][a-zA-Z0-9_]*)/g, (_, var1, var2) => {
-    const varName = var1 || var2;
-    // Only add parameter if we haven't seen it before
-    if (!parameters.find((p) => p.name === varName)) {
+  const openApiPath = path.replace(
+    /\{\{([^}]+)\}\}|:([a-zA-Z_][a-zA-Z0-9_]*)/g,
+    (_, var1, var2) => {
+      const varName = var1 || var2;
+      // Only add parameter if we haven't seen it before
+      if (!parameters.find((p) => p.name === varName)) {
         const pathVar = pathVariables?.find((pv) => pv.key === varName);
 
         parameters.push({
-        name: varName,
-        in: "path",
-        required: true,
-        schema: {
-          type: pathVar?.dataType || "string",
-        },
-        description: pathVar?.description,
-      });
-    }
-    return `{${varName}}`;
-  });
+          name: varName,
+          in: "path",
+          required: true,
+          schema: {
+            type: pathVar?.dataType || "string",
+          },
+          description: pathVar?.description,
+        });
+      }
+      return `{${varName}}`;
+    },
+  );
 
   return { openApiPath, parameters };
 }
@@ -102,7 +110,7 @@ function convertQueryParameters(
       name: param.key,
       in: "query" as const,
       schema: {
-        type: param.dataType,
+        type: param.dataType || "string",
       },
       description: param.description,
       example: param.value || undefined,
