@@ -19,7 +19,3 @@ export const PostmanEnvironmentSchema = z.object({
   _postman_exported_at: z.string().optional(),
   _postman_exported_using: z.string().optional(),
 });
-
-// Export types
-export type PostmanEnvironment = z.infer<typeof PostmanEnvironmentSchema>;
-export type PostmanEnvironmentValue = z.infer<typeof PostmanEnvironmentValueSchema>;

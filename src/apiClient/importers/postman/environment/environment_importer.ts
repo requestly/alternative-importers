@@ -2,7 +2,8 @@ import { z } from "zod";
 
 import { EnvironmentVariableData, EnvironmentVariableType, VariableScope } from "@requestly/shared/types/entities/apiClient";
 
-import { PostmanEnvironmentSchema, PostmanEnvironmentValue } from "./schemas/environment";
+import { PostmanEnvironmentValue } from "./types";
+import { PostmanEnvironmentSchema } from "~/schemas/zod-schemas/postman_environment";
 import BaseImporter from "../../base-importer";
 import { EnvironmentImporterOutput, EnvironmentWithoutId } from "~/apiClient/types";
 

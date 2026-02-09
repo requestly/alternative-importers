@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import EnvironmentImporter from "../environment_importer";
 import { VariableScope, EnvironmentVariableType } from "@requestly/shared/types/entities/apiClient";
-import type { PostmanEnvironment } from "../schemas/environment";
+import type { PostmanEnvironment } from "../types";
 
 // Fixtures - cast to correct type since JSON imports lose literal types
 import basicEnvironmentJson from "./fixtures/valid/basic-environment.json";

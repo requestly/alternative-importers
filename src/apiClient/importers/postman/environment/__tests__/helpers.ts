@@ -1,4 +1,4 @@
-import type { PostmanEnvironment, PostmanEnvironmentValue } from "../schemas/environment";
+import type { PostmanEnvironment, PostmanEnvironmentValue } from "../types";
 
 // Type for the variable type field
 type PostmanVariableType = "default" | "secret" | "text" | "number" | "boolean";
