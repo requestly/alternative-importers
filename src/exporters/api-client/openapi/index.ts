@@ -172,7 +172,9 @@ function inferSchemaFromValue(value: unknown): OpenAPIV3.SchemaObject {
   if (type === "object") {
     const properties: Record<string, OpenAPIV3.SchemaObject> = {};
     for (const key in value as Record<string, unknown>) {
-      properties[key] = inferSchemaFromValue((value as Record<string, unknown>)[key]);
+      properties[key] = inferSchemaFromValue(
+        (value as Record<string, unknown>)[key],
+      );
     }
     return {
       type: "object",
@@ -412,16 +414,15 @@ function extractApiRecords(
 function processRequest(
   apiRecord: RQAPI.ApiRecord,
   parentAuth: RQAPI.Auth | undefined,
-  openApiDoc: OpenAPIV3.Document,
   pathsMap: Map<string, Set<string>>,
   serversSet: Set<string>,
   securitySchemesMap: Map<string, OpenAPIV3.SecuritySchemeObject>,
-): void {
+): OpenAPIV3.PathsObject {
   const entry = apiRecord.data;
 
   // Skip GraphQL requests
   if (entry.type === RQAPI.ApiEntryType.GRAPHQL) {
-    return;
+    return {};
   }
 
   const request = entry.request;
@@ -442,7 +443,7 @@ function processRequest(
   const methodsForPath = pathsMap.get(openApiPath)!;
   if (methodsForPath.has(request.method)) {
     // Skip duplicate
-    return;
+    return {};
   }
   methodsForPath.add(request.method);
 
@@ -484,17 +485,15 @@ function processRequest(
     security,
   };
 
-  // Add to paths
-  if (!openApiDoc.paths) {
-    openApiDoc.paths = {};
-  }
+  const result: OpenAPIV3.PathsObject = {};
 
-  if (!openApiDoc.paths[openApiPath]) {
-    openApiDoc.paths[openApiPath] = {};
+  if (!result[openApiPath]) {
+    result[openApiPath] = {};
   }
 
   const methodKey = request.method.toLowerCase() as Lowercase<RequestMethod>;
-  openApiDoc.paths[openApiPath][methodKey] = operation;
+  result[openApiPath][methodKey] = operation;
+  return result;
 }
 
 /**
@@ -527,21 +526,28 @@ export function convertToOpenAPI(
   const securitySchemesMap = new Map<string, OpenAPIV3.SecuritySchemeObject>();
 
   // Extract all API records from the collection hierarchy
-  const apiRecords = extractApiRecords(
-    collectionData,
-    collectionData.auth,
-  );
+  const apiRecords = extractApiRecords(collectionData, collectionData.auth);
 
   // Process each API record
   for (const { record, parentAuth } of apiRecords) {
-    processRequest(
+    const result = processRequest(
       record,
       parentAuth,
-      openApiDoc,
       pathsMap,
       serversSet,
       securitySchemesMap,
     );
+
+    // Merge paths properly and avoid overwriting methods
+    for (const [path, methods] of Object.entries(result)) {
+      if (!openApiDoc.paths[path]) {
+        openApiDoc.paths[path] = {};
+      }
+      openApiDoc.paths[path] = {
+        ...openApiDoc.paths[path],
+        ...methods,
+      };
+    }
   }
 
   // Add servers to document
