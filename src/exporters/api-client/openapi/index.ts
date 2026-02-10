@@ -200,7 +200,10 @@ function inferSchemaFromValue(value: unknown): OpenAPIV3.SchemaObject {
 function convertRequestBody(
   request: RQAPI.HttpRequest,
 ): OpenAPIV3.RequestBodyObject | undefined {
-  const contentType = request.contentType;
+  // Use request.contentType or infer from enabled Content-Type header
+  let contentType =
+    request.headers?.find((h) => h.key.toLowerCase() === "content-type")
+      ?.value || request.contentType;
 
   if (!request.body && !request.bodyContainer) {
     return undefined;
@@ -452,7 +455,9 @@ function processRequest(
   serversSet.add(serverUrl);
 
   // Convert parameters
-  const queryParams = request.queryParams ? convertQueryParameters(request.queryParams) : [];
+  const queryParams = request.queryParams
+    ? convertQueryParameters(request.queryParams)
+    : [];
   const headerParams = request.headers ? convertHeaders(request.headers) : [];
   const allParameters = [...pathParams, ...queryParams, ...headerParams];
 
