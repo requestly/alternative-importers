@@ -8,10 +8,10 @@ import type { OpenAPIV3 } from "openapi-types";
 import { stringify as yamlStringify } from "yaml";
 
 /**
- * Type representing a flattened record with hierarchy information
+ * Type representing an extracted API record with its inherited auth
  */
-interface FlattenedRecord {
-  record: RQAPI.ApiClientRecord;
+interface ExtractedApiRecord {
+  record: RQAPI.ApiRecord;
   parentAuth?: RQAPI.Auth;
 }
 
@@ -27,7 +27,7 @@ function parseUrl(url: string): {
   try {
     // If URL doesn't have protocol, add a temporary one for parsing
     let processedUrl = url;
-    if (!url.match(/^https?:\/\//)) {
+    if (!url.match(/^[^:]+(?=:\/\/)/)) {
       processedUrl = `http://${url}`;
     }
 
@@ -45,10 +45,11 @@ function parseUrl(url: string): {
     return { protocol, host, path, queryString };
   } catch {
     // If URL parsing fails (e.g., contains variables), do basic string parsing
-    const protocolMatch = url.match(/^(https?):\/\//);
-    const protocol = protocolMatch ? protocolMatch[1] : "https";
+    // match everything before :// as protocol
+    const protocolMatch = url.match(/^[^:]+(?=:\/\/)/);
+    const protocol = protocolMatch ? protocolMatch[0] : "https";
 
-    const withoutProtocol = url.replace(/^https?:\/\//, "");
+    const withoutProtocol = url.replace(/.*:\/\//, "");
     const [hostAndPath, queryString = ""] = withoutProtocol.split("?");
     const [host, ...pathParts] = hostAndPath.split("/");
     const path = "/" + pathParts.join("/");
@@ -150,7 +151,7 @@ function convertHeaders(
 /**
  * Infer OpenAPI schema from a parsed JSON value
  */
-function inferSchemaFromValue(value: any): OpenAPIV3.SchemaObject {
+function inferSchemaFromValue(value: unknown): OpenAPIV3.SchemaObject {
   if (value === null) {
     return { type: "string", nullable: true };
   }
@@ -170,8 +171,8 @@ function inferSchemaFromValue(value: any): OpenAPIV3.SchemaObject {
 
   if (type === "object") {
     const properties: Record<string, OpenAPIV3.SchemaObject> = {};
-    for (const key in value) {
-      properties[key] = inferSchemaFromValue(value[key]);
+    for (const key in value as Record<string, unknown>) {
+      properties[key] = inferSchemaFromValue((value as Record<string, unknown>)[key]);
     }
     return {
       type: "object",
@@ -374,13 +375,13 @@ function convertAuthToSecurityScheme(
 }
 
 /**
- * Flatten collection hierarchy to get all records with their parent auth
+ * Extract all API records from collection hierarchy with their inherited auth
  */
-function flattenCollection(
+function extractApiRecords(
   collection: RQAPI.Collection,
   parentAuth?: RQAPI.Auth,
-): FlattenedRecord[] {
-  const result: FlattenedRecord[] = [];
+): ExtractedApiRecord[] {
+  const result: ExtractedApiRecord[] = [];
 
   if (!collection.children) {
     return result;
@@ -395,10 +396,9 @@ function flattenCollection(
           ? parentAuth
           : childAuth;
 
-      result.push({ record: child, parentAuth });
-      result.push(...flattenCollection(child.data, collectionAuth));
+      result.push(...extractApiRecords(child.data, collectionAuth));
     } else if (child.type === RQAPI.RecordType.API) {
-      // For API records, just add with parent auth
+      // Add API records with parent auth
       result.push({ record: child, parentAuth });
     }
   }
@@ -526,24 +526,22 @@ export function convertToOpenAPI(
   const serversSet = new Set<string>();
   const securitySchemesMap = new Map<string, OpenAPIV3.SecuritySchemeObject>();
 
-  // Flatten collection and get all API records
-  const flattenedRecords = flattenCollection(
+  // Extract all API records from the collection hierarchy
+  const apiRecords = extractApiRecords(
     collectionData,
     collectionData.auth,
   );
 
   // Process each API record
-  for (const { record, parentAuth } of flattenedRecords) {
-    if (record.type === RQAPI.RecordType.API) {
-      processRequest(
-        record,
-        parentAuth,
-        openApiDoc,
-        pathsMap,
-        serversSet,
-        securitySchemesMap,
-      );
-    }
+  for (const { record, parentAuth } of apiRecords) {
+    processRequest(
+      record,
+      parentAuth,
+      openApiDoc,
+      pathsMap,
+      serversSet,
+      securitySchemesMap,
+    );
   }
 
   // Add servers to document
