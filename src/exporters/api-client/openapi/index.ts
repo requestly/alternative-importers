@@ -356,7 +356,7 @@ function convertAuthToSecurityScheme(
 
     case Authorization.Type.API_KEY: {
       const config = auth.authConfigStore[Authorization.Type.API_KEY];
-      if (config) {
+      if (config?.key) {
         const sanitizedName = config.key.replace(/[^a-zA-Z0-9]/g, "_");
         const schemeName = `apiKey_${sanitizedName}`;
         return {
@@ -452,8 +452,8 @@ function processRequest(
   serversSet.add(serverUrl);
 
   // Convert parameters
-  const queryParams = convertQueryParameters(request.queryParams);
-  const headerParams = convertHeaders(request.headers);
+  const queryParams = request.queryParams ? convertQueryParameters(request.queryParams) : [];
+  const headerParams = request.headers ? convertHeaders(request.headers) : [];
   const allParameters = [...pathParams, ...queryParams, ...headerParams];
 
   // Convert request body
