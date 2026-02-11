@@ -5,7 +5,18 @@ import {
   RequestContentType,
 } from "@requestly/shared/types/entities/apiClient";
 import type { OpenAPIV3 } from "openapi-types";
-import { stringify as yamlStringify } from "yaml";
+
+/**
+ * Headers that are skipped during OpenAPI export
+ */
+const SKIP_HEADERS = [
+  "host",
+  "content-length",
+  "content-type",
+  "accept",
+  "user-agent",
+  "connection",
+];
 
 /**
  * Type representing an extracted API record with its inherited auth
@@ -13,6 +24,16 @@ import { stringify as yamlStringify } from "yaml";
 interface ExtractedApiRecord {
   record: RQAPI.ApiRecord;
   parentAuth?: RQAPI.Auth;
+}
+
+/**
+ * Type representing the result of processing a request
+ */
+interface ProcessRequestResult {
+  serverUrl: string;
+  paths: OpenAPIV3.PathsObject;
+  openApiPath: string;
+  securityScheme?: { schemeName: string; scheme: OpenAPIV3.SecuritySchemeObject };
 }
 
 /**
@@ -123,19 +144,10 @@ function convertQueryParameters(
 function convertHeaders(
   headers: RQAPI.HttpRequest["headers"],
 ): OpenAPIV3.ParameterObject[] {
-  const skipHeaders = new Set([
-    "host",
-    "content-length",
-    "content-type",
-    "accept",
-    "user-agent",
-    "connection",
-  ]);
-
   return headers
     .filter(
       (header) =>
-        header.isEnabled && !skipHeaders.has(header.key.toLowerCase()),
+        header.isEnabled && !SKIP_HEADERS.includes(header.key.toLowerCase()),
     )
     .map((header) => ({
       name: header.key,
@@ -417,15 +429,11 @@ function extractApiRecords(
 function processRequest(
   apiRecord: RQAPI.ApiRecord,
   parentAuth: RQAPI.Auth | undefined,
-  pathsMap: Map<string, Set<string>>,
-  serversSet: Set<string>,
-  securitySchemesMap: Map<string, OpenAPIV3.SecuritySchemeObject>,
-): OpenAPIV3.PathsObject {
+): ProcessRequestResult {
   const entry = apiRecord.data;
 
-  // Skip GraphQL requests
   if (entry.type === RQAPI.ApiEntryType.GRAPHQL) {
-    return {};
+    return { serverUrl: "", paths: {}, openApiPath: "" };
   }
 
   const request = entry.request;
@@ -436,23 +444,6 @@ function processRequest(
     path,
     request.pathVariables,
   );
-
-  // Check for duplicate path + method
-  const pathKey = `${openApiPath}|${request.method}`;
-  if (!pathsMap.has(openApiPath)) {
-    pathsMap.set(openApiPath, new Set());
-  }
-
-  const methodsForPath = pathsMap.get(openApiPath)!;
-  if (methodsForPath.has(request.method)) {
-    // Skip duplicate
-    return {};
-  }
-  methodsForPath.add(request.method);
-
-  // Add server
-  const serverUrl = `${protocol}://${host}`;
-  serversSet.add(serverUrl);
 
   // Convert parameters
   const queryParams = request.queryParams
@@ -467,11 +458,12 @@ function processRequest(
   // Handle authentication
   const effectiveAuth = getEffectiveAuth(apiRecord, parentAuth);
   let security: OpenAPIV3.SecurityRequirementObject[] | undefined;
+  let securityScheme: { schemeName: string; scheme: OpenAPIV3.SecuritySchemeObject } | undefined;
 
   if (effectiveAuth) {
     const authScheme = convertAuthToSecurityScheme(effectiveAuth);
     if (authScheme) {
-      securitySchemesMap.set(authScheme.schemeName, authScheme.scheme);
+      securityScheme = authScheme;
       security = [{ [authScheme.schemeName]: [] }];
     }
   }
@@ -489,15 +481,20 @@ function processRequest(
     },
     security,
   };
+  const serverUrl = `${protocol}://${host}`;
+  const result: ProcessRequestResult = {
+    serverUrl,
+    paths: {},
+    openApiPath,
+    securityScheme,
+  };
 
-  const result: OpenAPIV3.PathsObject = {};
-
-  if (!result[openApiPath]) {
-    result[openApiPath] = {};
+  if (!result.paths[openApiPath]) {
+    result.paths[openApiPath] = {};
   }
 
   const methodKey = request.method.toLowerCase() as Lowercase<RequestMethod>;
-  result[openApiPath][methodKey] = operation;
+  result.paths[openApiPath][methodKey] = operation;
   return result;
 }
 
@@ -535,16 +532,36 @@ export function convertToOpenAPI(
 
   // Process each API record
   for (const { record, parentAuth } of apiRecords) {
-    const result = processRequest(
-      record,
-      parentAuth,
-      pathsMap,
-      serversSet,
-      securitySchemesMap,
-    );
+    // Skip GraphQL requests
+    if (record.data.type === RQAPI.ApiEntryType.GRAPHQL) {
+      continue;
+    }
 
+    const result = processRequest(record, parentAuth);
+
+    // Add security scheme if present
+    if (result.securityScheme) {
+      securitySchemesMap.set(
+        result.securityScheme.schemeName,
+        result.securityScheme.scheme,
+      );
+    }
+
+    const entry = record.data;
+    const request = entry.request;
+    // Check for duplicate path + method
+    if (!pathsMap.has(result.openApiPath)) {
+      pathsMap.set(result.openApiPath, new Set());
+    }
+
+    const methodsForPath = pathsMap.get(result.openApiPath)!;
+    if (methodsForPath.has(request.method)) {
+      // Skip duplicate
+      continue;
+    }
+    methodsForPath.add(request.method);
     // Merge paths properly and avoid overwriting methods
-    for (const [path, methods] of Object.entries(result)) {
+    for (const [path, methods] of Object.entries(result.paths)) {
       if (!openApiDoc.paths[path]) {
         openApiDoc.paths[path] = {};
       }
