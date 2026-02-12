@@ -130,6 +130,11 @@ export function convertToOpenAPI(
 
     const result = processRequest(record, parentAuth);
 
+    // Add server URL
+    if (result.serverUrl) {
+      serversSet.add(result.serverUrl);
+    }
+
     // Add security scheme if present
     if (result.securityScheme) {
       securitySchemesMap.set(
