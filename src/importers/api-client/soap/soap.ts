@@ -41,6 +41,14 @@ interface OperationParams {
     childElements: Array<{ name: string; type: string }>;
 }
 
+interface ProcessedPort {
+    name: string;
+    description: string;
+    requests: RQAPI.ApiRecord[];
+    variables: Set<string>;
+    location: string;
+}
+
 const createSoapError = (
     type: SoapImportErrorType,
     message: string,
@@ -57,14 +65,10 @@ const asArray = <T>(input: T | T[] | undefined): T[] => {
     return Array.isArray(input) ? input : [input];
 };
 
-/**
- * Finds a child key ignoring namespace prefixes.
- * e.g. getChildByTagName(obj, "definitions") matches "definitions" or "wsdl:definitions"
- */
 const getChildByTagName = (obj: any, tagName: string): any => {
     if (!obj) return undefined;
     const key = Object.keys(obj).find(
-        (k) => k === tagName || k.endsWith(`:${tagName}`)
+        (k) => k === tagName || k.endsWith(`:${tagName}`),
     );
     return key ? obj[key] : undefined;
 };
@@ -109,27 +113,32 @@ const buildWsdlContext = (definitions: WsdlDefinitions): WsdlContext => {
     const types = asArray(getChildByTagName(definitions, "types"))[0];
     if (types) {
         const schemas = asArray(getChildByTagName(types, "schema"));
-        
         schemas.forEach((schema) => {
-            const targetNamespace = schema.$?.targetNamespace || schema.$?.["xmlns:tns"];
+            const targetNamespace =
+                schema.$?.targetNamespace || schema.$?.["xmlns:tns"];
             const elements = asArray(getChildByTagName(schema, "element"));
 
             elements.forEach((element) => {
                 const name = element.$?.name;
                 if (!name || context.elementMap.has(name)) return;
 
-                // Pre-calculate nested children structure
                 let children: Array<{ name: string; type: string }> = [];
                 const complexType = getChildByTagName(element, "complexType");
-                
+
                 if (complexType) {
-                    const ct = Array.isArray(complexType) ? complexType[0] : complexType;
+                    const ct = Array.isArray(complexType)
+                        ? complexType[0]
+                        : complexType;
                     const sequence = getChildByTagName(ct, "sequence");
-                    
+
                     if (sequence) {
-                        const seq = Array.isArray(sequence) ? sequence[0] : sequence;
-                        const childElements = asArray(getChildByTagName(seq, "element"));
-                        
+                        const seq = Array.isArray(sequence)
+                            ? sequence[0]
+                            : sequence;
+                        const childElements = asArray(
+                            getChildByTagName(seq, "element"),
+                        );
+
                         children = childElements.map((child: any) => ({
                             name: child.$?.name || "param",
                             type: child.$?.type || "xs:string",
@@ -137,10 +146,7 @@ const buildWsdlContext = (definitions: WsdlDefinitions): WsdlContext => {
                     }
                 }
 
-                context.elementMap.set(name, {
-                    targetNamespace,
-                    children
-                });
+                context.elementMap.set(name, { targetNamespace, children });
             });
         });
     }
@@ -167,46 +173,21 @@ const validateWsdlStructure = (definitions: WsdlDefinitions): void => {
             "Invalid WSDL: No services found",
         );
     }
-
-    if (asArray(getChildByTagName(definitions, "binding")).length === 0) {
-        throw createSoapError(
-            SoapImportErrorType.INVALID_WSDL_STRUCTURE,
-            "Invalid WSDL: No bindings found",
-        );
-    }
-
-    if (asArray(getChildByTagName(definitions, "portType")).length === 0) {
-        throw createSoapError(
-            SoapImportErrorType.INVALID_WSDL_STRUCTURE,
-            "Invalid WSDL: No port types found",
-        );
-    }
-
-    if (asArray(getChildByTagName(definitions, "message")).length === 0) {
-        throw createSoapError(
-            SoapImportErrorType.INVALID_WSDL_STRUCTURE,
-            "Invalid WSDL: No messages found",
-        );
-    }
 };
 
 const detectSoapVersion = (binding: WsdlBinding): "1.1" | "1.2" => {
     const soapBinding = getChildByTagName(binding, "binding");
-    const bindingNode = Array.isArray(soapBinding) ? soapBinding[0] : soapBinding;
+    const bindingNode = Array.isArray(soapBinding)
+        ? soapBinding[0]
+        : soapBinding;
 
-    if (!bindingNode) {
-        return "1.1";
-    }
+    if (!bindingNode) return "1.1";
 
     const transport = bindingNode.$?.transport || "";
-    if (transport === "http://www.w3.org/2003/05/soap-http") {
-        return "1.2";
-    }
-    
-    const bindingKey = Object.keys(binding).find(k => k.endsWith(":binding"));
-    if (bindingKey && bindingKey.includes("soap12")) {
-        return "1.2";
-    }
+    if (transport === "http://www.w3.org/2003/05/soap-http") return "1.2";
+
+    const bindingKey = Object.keys(binding).find((k) => k.endsWith(":binding"));
+    if (bindingKey && bindingKey.includes("soap12")) return "1.2";
 
     return "1.1";
 };
@@ -216,21 +197,15 @@ const findMessage = (
     context: WsdlContext,
 ): WsdlMessage | undefined => {
     if (!messageName) return undefined;
-    const cleanName = messageName.replace(/^.*:/, ""); 
+    const cleanName = messageName.replace(/^.*:/, "");
     return context.messageMap.get(cleanName);
 };
 
-const extractMessageParts = (
-    message: WsdlMessage | undefined,
-): any[] => {
+const extractMessageParts = (message: WsdlMessage | undefined): any[] => {
     if (!message) return [];
-    
     const partData = getChildByTagName(message, "part");
     if (!partData) return [];
-
-    const parts = asArray(partData);
-
-    return parts.map((part) => ({
+    return asArray(partData).map((part) => ({
         name: part.$?.name || "param",
         element: part.$?.element,
         type: part.$?.type,
@@ -238,34 +213,31 @@ const extractMessageParts = (
 };
 
 const extractElementNameFromPart = (part: any): string => {
-    if (part.element) {
-        return part.element.replace(/^.*:/, "");
-    }
+    if (part.element) return part.element.replace(/^.*:/, "");
     return part.name;
 };
 
 const getOperationParams = (
     operation: SoapOperationInfo,
-    context: WsdlContext
+    context: WsdlContext,
 ): OperationParams => {
     const inputParts = extractMessageParts(operation.inputMessageObject);
     const firstPart = inputParts[0];
     const operationElement = firstPart
         ? extractElementNameFromPart(firstPart)
         : operation.name;
-
     const elementInfo = context.elementMap.get(operationElement);
-    
-    return { 
-        elementNamespace: elementInfo?.targetNamespace, 
-        operationElement, 
-        childElements: elementInfo?.children || [] 
+
+    return {
+        elementNamespace: elementInfo?.targetNamespace,
+        operationElement,
+        childElements: elementInfo?.children || [],
     };
 };
 
 const generateSoapEnvelope = (
     soapVersion: "1.1" | "1.2",
-    params: OperationParams
+    params: OperationParams,
 ): string => {
     const { elementNamespace, operationElement, childElements } = params;
     const soapXmlns =
@@ -274,7 +246,6 @@ const generateSoapEnvelope = (
             : "http://schemas.xmlsoap.org/soap/envelope/";
 
     let envelopeNamespaceAttr = `xmlns:soap="${soapXmlns}"`;
-    
     let operationTagOpen = operationElement;
     let operationTagClose = operationElement;
     let paramPrefix = "";
@@ -312,7 +283,6 @@ const createSoapRequest = (
     context: WsdlContext,
     timestamp: number,
 ): { record: RQAPI.ApiRecord; variables: string[] } => {
-    
     const params = getOperationParams(operation, context);
     const soapEnvelope = generateSoapEnvelope(port.soapVersion, params);
 
@@ -353,7 +323,7 @@ const createSoapRequest = (
             form: [],
             multipartForm: [],
         },
-        contentType: RequestContentType.RAW,
+        contentType: RequestContentType.XML,
         includeCredentials: false,
     };
     
@@ -390,50 +360,96 @@ const createSoapRequest = (
         type: RQAPI.RecordType.API,
         data: httpApiEntry,
     };
-    
-    const usedVariables = params.childElements.map(child => getVariableName(child.name));
+
+    const usedVariables = params.childElements.map((child) =>
+        getVariableName(child.name),
+    );
 
     return { record: apiRecord, variables: usedVariables };
 };
 
-const buildPortCollection = (
+const processPort = (
     port: SoapPortInfo,
     serviceDocumentation: string,
     context: WsdlContext,
     timestamp: number,
-): RQAPI.CollectionRecord => {
-    const apiRecords: RQAPI.ApiRecord[] = [];
-    const collectedVariables = new Set<string>();
+): ProcessedPort => {
+    const requests: RQAPI.ApiRecord[] = [];
+    const variables = new Set<string>();
 
     port.operations.forEach((operation) => {
         const result = createSoapRequest(operation, port, context, timestamp);
-        apiRecords.push(result.record);
-        result.variables.forEach(v => collectedVariables.add(v));
+        requests.push(result.record);
+        result.variables.forEach((v) => variables.add(v));
     });
 
-    const collectionVariables: EnvironmentVariables = {
-        BaseUrl: {
-            id: 1,
-            isPersisted: true,
-            type: EnvironmentVariableType.String,
-            syncValue: port.location,
-        },
-    };
-    
-    let varIdCounter = 2;
-    collectedVariables.forEach((varName) => {
-        collectionVariables[varName] = {
-            id: varIdCounter++,
-            isPersisted: true,
-            type: EnvironmentVariableType.String,
-            syncValue: "",
-        };
-    });
-
-    const collectionRecord: RQAPI.CollectionRecord = {
-        id: "",
-        name: `${port.portName}`,
+    return {
+        name: port.portName,
         description: serviceDocumentation,
+        requests,
+        variables,
+        location: port.location,
+    };
+};
+
+const createVersionedCollection = (
+    name: string,
+    description: string,
+    ports: ProcessedPort[],
+    timestamp: number,
+): RQAPI.CollectionRecord => {
+    const portCollections: RQAPI.CollectionRecord[] = [];
+
+    ports.forEach((port) => {
+        const portVariables: EnvironmentVariables = {};
+        let varIdCounter = 1;
+
+        const addVariable = (key: string, value: string) => {
+            if (!portVariables[key]) {
+                portVariables[key] = {
+                    id: varIdCounter++,
+                    isPersisted: true,
+                    type: EnvironmentVariableType.String,
+                    syncValue: value,
+                };
+            }
+        };
+
+        addVariable("BaseUrl", port.location);
+        port.variables.forEach((v) => {
+            addVariable(v, "");
+        });
+
+        const portCol: RQAPI.CollectionRecord = {
+            id: "",
+            name: port.name,
+            description: port.description,
+            collectionId: "",
+            isExample: false,
+            ownerId: "",
+            deleted: false,
+            createdBy: "",
+            updatedBy: "",
+            createdTs: timestamp,
+            updatedTs: timestamp,
+            type: RQAPI.RecordType.COLLECTION,
+            data: {
+                children: port.requests,
+                scripts: { preRequest: "", postResponse: "" },
+                variables: portVariables, // Variables are now here
+                auth: {
+                    currentAuthType: Authorization.Type.INHERIT,
+                    authConfigStore: {},
+                },
+            },
+        };
+        portCollections.push(portCol);
+    });
+
+    return {
+        id: "",
+        name: name,
+        description: description,
         collectionId: "",
         isExample: false,
         ownerId: "",
@@ -444,36 +460,40 @@ const buildPortCollection = (
         updatedTs: timestamp,
         type: RQAPI.RecordType.COLLECTION,
         data: {
-            children: apiRecords,
-            scripts: {
-                preRequest: "",
-                postResponse: "",
-            },
-            variables: collectionVariables,
+            children: portCollections,
+            scripts: { preRequest: "", postResponse: "" },
+            variables: {},
             auth: {
                 currentAuthType: Authorization.Type.INHERIT,
                 authConfigStore: {},
             },
         },
     };
-
-    return collectionRecord;
 };
 
-const convertWsdlToRQAPI = (
-    context: WsdlContext,
-): RQAPI.CollectionRecord => {
+const convertWsdlToRQAPI = (context: WsdlContext): RQAPI.CollectionRecord => {
     const currentTimestamp = Date.now();
-    const portCollections: RQAPI.CollectionRecord[] = [];
-    
+
+    const soap11Ports: ProcessedPort[] = [];
+    const soap12Ports: ProcessedPort[] = [];
+
     const definitions = context.definitions;
     const services = asArray(getChildByTagName(definitions, "service"));
 
+    const serviceName =
+        services.length > 0 && services[0].$?.name
+            ? services[0].$?.name
+            : definitions.$?.name || "SOAP Service";
+
     services.forEach((service) => {
         const ports = asArray(getChildByTagName(service, "port"));
-        
-        const docs = asArray(getChildByTagName(service, "documentation")); 
-        const serviceDoc = docs.length > 0 ? (typeof docs[0] === 'string' ? docs[0] : JSON.stringify(docs[0])) : "";
+        const docs = asArray(getChildByTagName(service, "documentation"));
+        const serviceDoc =
+            docs.length > 0
+                ? typeof docs[0] === "string"
+                    ? docs[0]
+                    : JSON.stringify(docs[0])
+                : "";
 
         ports.forEach((port) => {
             const portName = port.$?.name || "Port";
@@ -481,7 +501,9 @@ const convertWsdlToRQAPI = (
             const cleanBindingName = bindingName.replace(/^.*:/, "");
 
             const soapAddress = getChildByTagName(port, "address");
-            const addressNode = Array.isArray(soapAddress) ? soapAddress[0] : soapAddress;
+            const addressNode = Array.isArray(soapAddress)
+                ? soapAddress[0]
+                : soapAddress;
             const location = addressNode?.$?.location || "";
 
             if (!location) {
@@ -490,58 +512,65 @@ const convertWsdlToRQAPI = (
             }
 
             const binding = context.bindingMap.get(cleanBindingName);
-            if (!binding) {
-                return;
-            }
+            if (!binding) return;
 
             const soapVersion = detectSoapVersion(binding);
             const bindingType = binding.$?.type || "";
             const cleanPortTypeName = bindingType.replace(/^.*:/, "");
 
-            const portTypeOperations = context.portTypeMap.get(cleanPortTypeName);
-
+            const portTypeOperations =
+                context.portTypeMap.get(cleanPortTypeName);
             const operations: SoapOperationInfo[] = [];
-            const rawOperations = asArray(getChildByTagName(portTypeOperations, "operation"));
+            const rawOperations = asArray(
+                getChildByTagName(portTypeOperations, "operation"),
+            );
 
             if (rawOperations.length > 0) {
                 rawOperations.forEach((operation) => {
                     const operationName = operation.$?.name;
-                    
-                    const input = asArray(getChildByTagName(operation, "input"))[0];
-                    const output = asArray(getChildByTagName(operation, "output"))[0];
-                    
+
+                    const input = asArray(
+                        getChildByTagName(operation, "input"),
+                    )[0];
+                    const output = asArray(
+                        getChildByTagName(operation, "output"),
+                    )[0];
+
                     const inputMsg = input?.$?.message || "";
                     const outputMsg = output?.$?.message || "";
 
                     const inputMessageObject = findMessage(inputMsg, context);
                     const outputMessageObject = findMessage(outputMsg, context);
 
-                    const cleanInputName = inputMsg.replace(/^.*:/, "");
-
-                    const operationInfo: SoapOperationInfo = {
+                    operations.push({
                         name: operationName,
-                        messageName: cleanInputName,
+                        messageName: inputMsg.replace(/^.*:/, ""),
                         messageInputName: inputMsg,
                         messageOutputName: outputMsg,
                         inputMessageObject,
                         outputMessageObject,
-                        soapAction: "",
-                    };
-
-                    const bindingOperations = asArray(getChildByTagName(binding, "operation"));
-                    const bindingOperation = bindingOperations.find(
-                        (op) => op.$?.name === operationName,
-                    );
-                    
-                    if (bindingOperation) {
-                        const soapOperation = getChildByTagName(bindingOperation, "operation");
-                        const soapOperationNode = Array.isArray(soapOperation) ? soapOperation[0] : soapOperation;
-                        if (soapOperationNode) {
-                            operationInfo.soapAction = soapOperationNode.$?.soapAction;
-                        }
-                    }
-
-                    operations.push(operationInfo);
+                        soapAction: (() => {
+                            const bindingOperations = asArray(
+                                getChildByTagName(binding, "operation"),
+                            );
+                            const bindingOp = bindingOperations.find(
+                                (op) => op.$?.name === operationName,
+                            );
+                            if (bindingOp) {
+                                const soapOperation = getChildByTagName(
+                                    bindingOp,
+                                    "operation",
+                                );
+                                const soapOperationNode = Array.isArray(
+                                    soapOperation,
+                                )
+                                    ? soapOperation[0]
+                                    : soapOperation;
+                                return soapOperationNode?.$?.soapAction;
+                            }
+                            return undefined;
+                        })(),
+                    });
                 });
             }
 
@@ -553,19 +582,48 @@ const convertWsdlToRQAPI = (
                 operations,
             };
 
-            const portCollection = buildPortCollection(
+            const processedPort = processPort(
                 portInfo,
                 serviceDoc,
                 context,
                 currentTimestamp,
             );
-            portCollections.push(portCollection);
+
+            if (soapVersion === "1.1") {
+                soap11Ports.push(processedPort);
+            } else {
+                soap12Ports.push(processedPort);
+            }
         });
     });
 
-    const rootCollection: RQAPI.CollectionRecord = {
+    const rootChildren: RQAPI.CollectionRecord[] = [];
+
+    if (soap11Ports.length > 0) {
+        rootChildren.push(
+            createVersionedCollection(
+                `${serviceName} V1.1`,
+                `SOAP 1.1 Endpoints for ${serviceName}`,
+                soap11Ports,
+                currentTimestamp,
+            ),
+        );
+    }
+
+    if (soap12Ports.length > 0) {
+        rootChildren.push(
+            createVersionedCollection(
+                `${serviceName} V1.2`,
+                `SOAP 1.2 Endpoints for ${serviceName}`,
+                soap12Ports,
+                currentTimestamp,
+            ),
+        );
+    }
+
+    return {
         id: "",
-        name: definitions.$?.name || "SOAP Service",
+        name: serviceName,
         description: "Collection imported from WSDL specification",
         collectionId: "",
         isExample: false,
@@ -577,11 +635,8 @@ const convertWsdlToRQAPI = (
         updatedTs: currentTimestamp,
         type: RQAPI.RecordType.COLLECTION,
         data: {
-            children: portCollections,
-            scripts: {
-                preRequest: "",
-                postResponse: "",
-            },
+            children: rootChildren,
+            scripts: { preRequest: "", postResponse: "" },
             variables: {},
             auth: {
                 currentAuthType: Authorization.Type.INHERIT,
@@ -589,15 +644,12 @@ const convertWsdlToRQAPI = (
             },
         },
     };
-
-    return rootCollection;
 };
 
 export const convert: ApiClientImporterMethod<ImportFile> = async (
     file: ImportFile,
 ) => {
     let definitions: WsdlDefinitions;
-    console.log("Received file for SOAP import:", file.name, `(${file.content.length} characters)`);
 
     try {
         definitions = await preProcessWsdl(file.content);
