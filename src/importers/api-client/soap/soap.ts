@@ -663,6 +663,9 @@ export const convert: ApiClientImporterMethod<ImportFile> = async (
     try {
         definitions = await preProcessWsdl(file.content);
     } catch (error) {
+        if ((error as SoapError).type) {
+            throw error;
+        }
         throw createSoapError(
             SoapImportErrorType.XML_PARSE_ERROR,
             "Failed to parse WSDL XML content",
