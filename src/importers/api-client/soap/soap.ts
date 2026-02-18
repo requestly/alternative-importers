@@ -10,6 +10,16 @@ import {
     SoapOperationInfo,
     SoapPortInfo,
     WsdlPortType,
+    WsdlOperation,
+    WsdlTypes,
+    WsdlPart,
+    WsdlService,
+    WsdlPort,
+    WsdlSoapAddress,
+    WsdlOperationMessage,
+    WsdlBindingOperation,
+    WsdlSoapOperation,
+    WsdlSoapBinding,
 } from "./types";
 import {
     RQAPI,
@@ -65,7 +75,7 @@ const asArray = <T>(input: T | T[] | undefined): T[] => {
     return Array.isArray(input) ? input : [input];
 };
 
-const getChildByTagName = (obj: any, tagName: string): any => {
+const getChildByTagName = <T = any>(obj: any, tagName: string): T | undefined => {
     if (!obj) return undefined;
     const key = Object.keys(obj).find(
         (k) => k === tagName || k.endsWith(`:${tagName}`),
@@ -89,54 +99,54 @@ const buildWsdlContext = (definitions: WsdlDefinitions): WsdlContext => {
         elementMap: new Map(),
     };
 
-    const messages = asArray(getChildByTagName(definitions, "message"));
+    const messages = asArray(getChildByTagName<WsdlMessage>(definitions, "message"));
     messages.forEach((msg) => {
         if (msg.$?.name) {
             context.messageMap.set(msg.$?.name, msg);
         }
     });
 
-    const bindings = asArray(getChildByTagName(definitions, "binding"));
+    const bindings = asArray(getChildByTagName<WsdlBinding>(definitions, "binding"));
     bindings.forEach((binding) => {
         if (binding.$?.name) {
             context.bindingMap.set(binding.$?.name, binding);
         }
     });
 
-    const portTypes = asArray(getChildByTagName(definitions, "portType"));
+    const portTypes = asArray(getChildByTagName<WsdlPortType>(definitions, "portType"));
     portTypes.forEach((pt) => {
         if (pt.$?.name) {
             context.portTypeMap.set(pt.$?.name, pt);
         }
     });
 
-    const types = asArray(getChildByTagName(definitions, "types"))[0];
+    const types = asArray(getChildByTagName<WsdlTypes>(definitions, "types"))[0];
     if (types) {
-        const schemas = asArray(getChildByTagName(types, "schema"));
+        const schemas = asArray(getChildByTagName<any>(types, "schema"));
         schemas.forEach((schema) => {
             const targetNamespace =
                 schema.$?.targetNamespace || schema.$?.["xmlns:tns"];
-            const elements = asArray(getChildByTagName(schema, "element"));
+            const elements = asArray(getChildByTagName<any>(schema, "element"));
 
             elements.forEach((element) => {
                 const name = element.$?.name;
                 if (!name || context.elementMap.has(name)) return;
 
                 let children: Array<{ name: string; type: string }> = [];
-                const complexType = getChildByTagName(element, "complexType");
+                const complexType = getChildByTagName<any>(element, "complexType");
 
                 if (complexType) {
                     const ct = Array.isArray(complexType)
                         ? complexType[0]
                         : complexType;
-                    const sequence = getChildByTagName(ct, "sequence");
+                    const sequence = getChildByTagName<any>(ct, "sequence");
 
                     if (sequence) {
                         const seq = Array.isArray(sequence)
                             ? sequence[0]
                             : sequence;
                         const childElements = asArray(
-                            getChildByTagName(seq, "element"),
+                            getChildByTagName<any>(seq, "element"),
                         );
 
                         children = childElements.map((child: any) => ({
@@ -156,7 +166,14 @@ const buildWsdlContext = (definitions: WsdlDefinitions): WsdlContext => {
 
 const preProcessWsdl = async (content: string): Promise<WsdlDefinitions> => {
     const parsed = await parseStringPromise(content, { explicitArray: false });
-    return getChildByTagName(parsed, "definitions");
+    const definitions = getChildByTagName<WsdlDefinitions>(parsed, "definitions");
+    if (!definitions) {
+        throw createSoapError(
+            SoapImportErrorType.INVALID_WSDL_STRUCTURE,
+            "Invalid WSDL: Missing definitions element",
+        );
+    }
+    return definitions;
 };
 
 const validateWsdlStructure = (definitions: WsdlDefinitions): void => {
@@ -167,7 +184,7 @@ const validateWsdlStructure = (definitions: WsdlDefinitions): void => {
         );
     }
 
-    if (asArray(getChildByTagName(definitions, "service")).length === 0) {
+    if (asArray(getChildByTagName<WsdlService>(definitions, "service")).length === 0) {
         throw createSoapError(
             SoapImportErrorType.INVALID_WSDL_STRUCTURE,
             "Invalid WSDL: No services found",
@@ -176,7 +193,7 @@ const validateWsdlStructure = (definitions: WsdlDefinitions): void => {
 };
 
 const detectSoapVersion = (binding: WsdlBinding): "1.1" | "1.2" => {
-    const soapBinding = getChildByTagName(binding, "binding");
+    const soapBinding = getChildByTagName<WsdlSoapBinding>(binding, "binding");
     const bindingNode = Array.isArray(soapBinding)
         ? soapBinding[0]
         : soapBinding;
@@ -203,7 +220,7 @@ const findMessage = (
 
 const extractMessageParts = (message: WsdlMessage | undefined): any[] => {
     if (!message) return [];
-    const partData = getChildByTagName(message, "part");
+    const partData = getChildByTagName<WsdlPart>(message, "part");
     if (!partData) return [];
     return asArray(partData).map((part) => ({
         name: part.$?.name || "param",
@@ -436,7 +453,7 @@ const createVersionedCollection = (
             data: {
                 children: port.requests,
                 scripts: { preRequest: "", postResponse: "" },
-                variables: portVariables, // Variables are now here
+                variables: portVariables,
                 auth: {
                     currentAuthType: Authorization.Type.INHERIT,
                     authConfigStore: {},
@@ -478,7 +495,7 @@ const convertWsdlToRQAPI = (context: WsdlContext): RQAPI.CollectionRecord => {
     const soap12Ports: ProcessedPort[] = [];
 
     const definitions = context.definitions;
-    const services = asArray(getChildByTagName(definitions, "service"));
+    const services = asArray(getChildByTagName<WsdlService>(definitions, "service"));
 
     const serviceName =
         services.length > 0 && services[0].$?.name
@@ -486,8 +503,8 @@ const convertWsdlToRQAPI = (context: WsdlContext): RQAPI.CollectionRecord => {
             : definitions.$?.name || "SOAP Service";
 
     services.forEach((service) => {
-        const ports = asArray(getChildByTagName(service, "port"));
-        const docs = asArray(getChildByTagName(service, "documentation"));
+        const ports = asArray(getChildByTagName<WsdlPort>(service, "port"));
+        const docs = asArray(getChildByTagName<string>(service, "documentation"));
         const serviceDoc =
             docs.length > 0
                 ? typeof docs[0] === "string"
@@ -500,7 +517,7 @@ const convertWsdlToRQAPI = (context: WsdlContext): RQAPI.CollectionRecord => {
             const bindingName = port.$?.binding || "";
             const cleanBindingName = bindingName.replace(/^.*:/, "");
 
-            const soapAddress = getChildByTagName(port, "address");
+            const soapAddress = getChildByTagName<WsdlSoapAddress>(port, "address");
             const addressNode = Array.isArray(soapAddress)
                 ? soapAddress[0]
                 : soapAddress;
@@ -521,43 +538,36 @@ const convertWsdlToRQAPI = (context: WsdlContext): RQAPI.CollectionRecord => {
             const portTypeOperations =
                 context.portTypeMap.get(cleanPortTypeName);
             const operations: SoapOperationInfo[] = [];
-            const rawOperations = asArray(
-                getChildByTagName(portTypeOperations, "operation"),
+            
+            const rawOperations = asArray<WsdlOperation>(
+                getChildByTagName<WsdlOperation>(portTypeOperations, "operation"),
             );
 
             if (rawOperations.length > 0) {
                 rawOperations.forEach((operation) => {
                     const operationName = operation.$?.name;
+                    if (!operationName) return;
 
                     const input = asArray(
-                        getChildByTagName(operation, "input"),
-                    )[0];
-                    const output = asArray(
-                        getChildByTagName(operation, "output"),
+                        getChildByTagName<WsdlOperationMessage>(operation, "input"),
                     )[0];
 
                     const inputMsg = input?.$?.message || "";
-                    const outputMsg = output?.$?.message || "";
-
                     const inputMessageObject = findMessage(inputMsg, context);
-                    const outputMessageObject = findMessage(outputMsg, context);
 
                     operations.push({
                         name: operationName,
                         messageName: inputMsg.replace(/^.*:/, ""),
-                        messageInputName: inputMsg,
-                        messageOutputName: outputMsg,
                         inputMessageObject,
-                        outputMessageObject,
                         soapAction: (() => {
                             const bindingOperations = asArray(
-                                getChildByTagName(binding, "operation"),
+                                getChildByTagName<WsdlBindingOperation>(binding, "operation"),
                             );
                             const bindingOp = bindingOperations.find(
                                 (op) => op.$?.name === operationName,
                             );
                             if (bindingOp) {
-                                const soapOperation = getChildByTagName(
+                                const soapOperation = getChildByTagName<WsdlSoapOperation>(
                                     bindingOp,
                                     "operation",
                                 );
@@ -576,7 +586,6 @@ const convertWsdlToRQAPI = (context: WsdlContext): RQAPI.CollectionRecord => {
 
             const portInfo: SoapPortInfo = {
                 portName,
-                bindingName: cleanBindingName,
                 location,
                 soapVersion,
                 operations,

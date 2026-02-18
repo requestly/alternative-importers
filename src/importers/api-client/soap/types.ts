@@ -50,7 +50,7 @@ export interface WsdlPortType {
 }
 
 export interface WsdlOperation {
-  $: { name: string };
+  $?: { name?: string };
   input?: WsdlOperationMessage | WsdlOperationMessage[];
   output?: WsdlOperationMessage | WsdlOperationMessage[];
   [key: string]: any;
@@ -108,22 +108,13 @@ export interface WsdlSoapAddress {
 export interface SoapOperationInfo {
   name: string;
   messageName: string;
-  messageInputName?: string;
-  messageOutputName?: string;
   inputMessageObject?: WsdlMessage;
-  outputMessageObject?: WsdlMessage;
   soapAction?: string;
 }
 
 export interface SoapPortInfo {
   portName: string;
-  bindingName: string;
   location: string;
   soapVersion: "1.1" | "1.2";
   operations: SoapOperationInfo[];
-}
-
-export interface SoapServiceInfo {
-  serviceName: string;
-  ports: SoapPortInfo[];
 }
