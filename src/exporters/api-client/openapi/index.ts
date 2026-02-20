@@ -29,7 +29,7 @@ export function processRequest(
 
   const request = entry.request;
   const { protocol, host, path } = parseUrl(request.url);
-
+  console.log("Parsed URL:", { protocol, host, path });
   // Convert path variables
   const { openApiPath, parameters: pathParams } = convertPathVariables(
     path,
