@@ -1,0 +1,24 @@
+{
+  "id": "39e5edd1-aeda-42a7-aad1-693ade074e3a",
+  "name": "Production API",
+  "values": [
+    {
+      "key": "baseUrl",
+      "value": "https://api.example.com",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "apiKey",
+      "value": "prod-api-key-123",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "timeout",
+      "value": "5000",
+      "type": "default",
+      "enabled": true
+    }
+  ]
+}

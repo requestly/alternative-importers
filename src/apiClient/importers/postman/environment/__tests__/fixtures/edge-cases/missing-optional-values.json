@@ -1,0 +1,16 @@
+{
+  "id": "missing-optionals-id",
+  "name": "Environment with Missing Optional Values",
+  "values": [
+    {
+      "key": "minimalVar",
+      "value": "value1"
+    },
+    {
+      "key": "noValue",
+      "value": "",
+      "type": "default",
+      "enabled": true
+    }
+  ]
+}

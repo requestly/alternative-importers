@@ -1,0 +1,15 @@
+{
+  "id": "global-vars-id",
+  "name": "Global Variables",
+  "values": [
+    {
+      "key": "globalKey",
+      "value": "global-value",
+      "type": "default",
+      "enabled": true
+    }
+  ],
+  "_postman_variable_scope": "globals",
+  "_postman_exported_at": "2026-02-04T19:27:33.589Z",
+  "_postman_exported_using": "Postman/11.83.4"
+}

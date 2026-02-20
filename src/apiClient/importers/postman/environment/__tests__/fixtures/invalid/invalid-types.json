@@ -1,0 +1,12 @@
+{
+  "id": "invalid-types-id",
+  "name": "Invalid Types",
+  "values": [
+    {
+      "key": "invalidType",
+      "value": 12345,
+      "type": "invalid-type",
+      "enabled": "not-a-boolean"
+    }
+  ]
+}
