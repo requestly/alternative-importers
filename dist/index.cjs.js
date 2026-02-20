@@ -1057,13 +1057,14 @@ function parseUrl(url) {
         }
         const urlObj = new URL(processedUrl);
         const protocol = urlObj.protocol.replace(":", "");
-        const host = urlObj.hostname + (urlObj.port ? `:${urlObj.port}` : "");
-        let path;
+        let host = urlObj.hostname + (urlObj.port ? `:${urlObj.port}` : "");
+        let path = urlObj.pathname;
         try {
             path = decodeURIComponent(urlObj.pathname);
+            host = decodeURIComponent(host);
         }
         catch {
-            path = urlObj.pathname;
+            // If decoding fails, use original values
         }
         const queryString = urlObj.search.substring(1); // Remove '?'
         return { protocol, host, path, queryString };
