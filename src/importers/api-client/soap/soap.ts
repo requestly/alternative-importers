@@ -400,7 +400,10 @@ const generateSoapEnvelope = (
 
     let bodyXml = "";
     if (style === "rpc") {
-        const encStyle = use === "encoded" ? ` soapenv:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"` : "";
+        const encodingUri = soapVersion === "1.2" 
+            ? "http://www.w3.org/2003/05/soap-encoding" 
+            : "http://schemas.xmlsoap.org/soap/encoding/";
+        const encStyle = use === "encoded" ? ` soap:encodingStyle="${encodingUri}"` : "";
         const partsXml = bodyParts.map(p => paramToXml(p, use, "", 3)).join("\n");
         bodyXml = `    <tns:${operationName}${encStyle}>\n${partsXml}\n    </tns:${operationName}>`;
     } else {
