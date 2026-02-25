@@ -1,3 +1,4 @@
+// src/importers/api-client/soap/types.ts
 // SOAP-specific error types
 export enum SoapImportErrorType {
   XML_PARSE_ERROR = "XML_PARSE_ERROR",
@@ -22,7 +23,7 @@ export interface WsdlDefinitions {
   portType?: WsdlPortType | WsdlPortType[];
   binding?: WsdlBinding | WsdlBinding[];
   service?: WsdlService | WsdlService[];
-  [key: string]: any; // Critical: Allows for prefixed keys like 'wsdl:service'
+  [key: string]: any; 
 }
 
 export interface WsdlTypes {
@@ -104,12 +105,15 @@ export interface WsdlSoapAddress {
   [key: string]: any;
 }
 
-// Extracted info types (Used internally by the importer logic)
+// Extracted info types
 export interface SoapOperationInfo {
   name: string;
   messageName: string;
   inputMessageObject?: WsdlMessage;
   soapAction?: string;
+  style?: "document" | "rpc";
+  use?: "literal" | "encoded";
+  headers?: any[];
 }
 
 export interface SoapPortInfo {
