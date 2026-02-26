@@ -1,4 +1,3 @@
-// src/importers/api-client/soap/types.ts
 // SOAP-specific error types
 export enum SoapImportErrorType {
   XML_PARSE_ERROR = "XML_PARSE_ERROR",
