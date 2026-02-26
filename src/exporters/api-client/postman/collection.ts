@@ -33,12 +33,12 @@ interface RQFormField {
   id: number;
   key: string;
   value: string | Array<{
-    id: string;
-    name: string;
-    path: string;
-    size: number;
-    source: string;
-  }>;
+        id: string;
+        name: string;
+        path: string;
+        size: number;
+        source: string;
+      }>;
   isEnabled: boolean;
   type?: "text" | "file"; // Optional since many form fields don't have this
 }
@@ -72,6 +72,33 @@ interface RQScripts {
   postResponse: string;
 }
 
+interface RQExampleResponse {
+  status: number;
+  statusText?: string;
+  headers?: RQHeader[];
+  body?: string;
+  time?: number;
+  redirectedUrl?: string;
+}
+
+interface RQExampleData {
+  type: string;
+  request?: RQRequest;
+  response?: RQExampleResponse;
+  auth?: RQAuth;
+  scripts?: RQScripts;
+}
+
+interface RQExample {
+  id?: string;
+  name: string;
+  parentRequestId?: string;
+  collectionId?: string;
+  type?: string;
+  data: RQExampleData;
+}
+// -------------------------------------
+
 interface RQRecord {
   name: string;
   type: "collection" | "api";
@@ -80,6 +107,7 @@ interface RQRecord {
     auth?: RQAuth;
     request?: RQRequest;
     scripts?: RQScripts;
+    examples?: RQExample[]; 
   };
   collectionId: string;
   deleted: boolean;
@@ -189,12 +217,24 @@ interface PostmanRequest {
   auth?: PostmanAuth;
 }
 
+interface PostmanResponse {
+  id?: string;
+  name: string;
+  originalRequest?: PostmanRequest;
+  status?: string;
+  code?: number;
+  header?: PostmanHeader[];
+  cookie?: any[];
+  body?: string;
+  _postman_previewlanguage?: string;
+}
+
 interface PostmanItem {
   id: string;
   name: string;
   item?: PostmanItem[];
   request?: PostmanRequest;
-  response?: any[];
+  response?: PostmanResponse[];
   event?: PostmanEvent[];
   description?: string;
   auth?: PostmanAuth;
@@ -298,8 +338,8 @@ function convertVariables(
  */
 function convertScript(script: string): string {
   return script
-    .replace(/\brq\./g, "pm.")
-    .replace(/\brq\b/g, "pm");
+  .replace(/\brq\./g, "pm.")
+  .replace(/\brq\b/g, "pm");
 }
 
 function convertScripts(requestlyScripts?: RQScripts): PostmanEvent[] {
@@ -375,21 +415,21 @@ function parseUrl(url: string): {
       const urlObj = new URL(cleanUrl);
       protocol = urlObj.protocol.replace(':', '') as 'http' | 'https';
       if (urlObj.hostname === "placeholder") {
-      host = ["{{url}}"];
+        host = ["{{url}}"];
       } else {
-      host = urlObj.hostname.split(".");
+        host = urlObj.hostname.split(".");
       }
       path = urlObj.pathname.split("/").filter(Boolean);
     } else {
       if (baseUrl.startsWith("{{")) {
-      host = [baseUrl.split("/")[0]];
-      path = baseUrl.split("/").slice(1).filter(Boolean);
+        host = [baseUrl.split("/")[0]];
+        path = baseUrl.split("/").slice(1).filter(Boolean);
       } else {
-      const parts = baseUrl.split("/").filter(Boolean);
-      if (parts.length > 0) {
-        host = parts[0].split(".");
-        path = parts.slice(1);
-      }
+        const parts = baseUrl.split("/").filter(Boolean);
+        if (parts.length > 0) {
+          host = parts[0].split(".");
+          path = parts.slice(1);
+        }
       }
     }
 
@@ -454,7 +494,7 @@ function convertRequest(
   }));
 
   let body: PostmanBody | undefined;
-  
+
   // Handle different body types based on content type and body structure
   if (requestData.body !== null && requestData.body !== undefined) {
     if (requestData.contentType === "multipart/form-data") {
@@ -538,6 +578,59 @@ function convertRequest(
   };
 }
 
+function convertExample(
+  example: RQExample,
+  parentRequest?: PostmanRequest,
+): PostmanResponse {
+  const exampleData = example.data || {};
+  const exampleResponse = exampleData.response;
+
+  const headers: PostmanHeader[] = (exampleResponse?.headers || []).map(
+    (header) => ({
+      key: header.key,
+      value: header.value,
+      type: header.type || "text",
+      disabled: !header.isEnabled,
+      description: header.description,
+    }),
+  );
+
+  let previewLanguage = "text";
+  const contentType =
+    headers.find((h) => h.key.toLowerCase() === "content-type")?.value || "";
+  if (contentType.includes("json")) previewLanguage = "json";
+  else if (contentType.includes("xml")) previewLanguage = "xml";
+  else if (contentType.includes("html")) previewLanguage = "html";
+
+  // If example has its own request payload, wrap it in a mock record to safely reuse convertRequest
+  let originalRequest = parentRequest;
+  if (exampleData.request) {
+    const mockRecord: RQRecord = {
+      id: "mock",
+      name: "mock",
+      type: "api",
+      collectionId: "mock",
+      deleted: false,
+      data: {
+        request: exampleData.request,
+        auth: exampleData.auth,
+      },
+    };
+    originalRequest = convertRequest(mockRecord) || parentRequest;
+  }
+
+  return {
+    id: example.id || crypto.randomUUID(),
+    name: example.name || "Example",
+    originalRequest,
+    status: exampleResponse?.statusText || "OK",
+    code: exampleResponse?.status || 200,
+    header: headers,
+    cookie: [],
+    body: exampleResponse?.body || "",
+    _postman_previewlanguage: previewLanguage,
+  };
+}
 /**
  * Builds a hierarchical structure from flat Requestly records
  */
@@ -587,8 +680,12 @@ function convertToPostmanItems(
         item.event = convertScripts(record.data.scripts);
       }
     } else if (record.type === "api") {
-      item.request = convertRequest(record);
-      item.response = [];
+      const postmanRequest = convertRequest(record);
+      item.request = postmanRequest;
+
+      item.response = record.data.examples
+        ? record.data.examples.map((ex) => convertExample(ex, postmanRequest))
+        : [];
 
       if (record.data.scripts) {
         item.event = convertScripts(record.data.scripts);
@@ -641,7 +738,7 @@ function createCollectionFromRoot(
  */
 async function createZipFile(collections: { name: string; data: PostmanCollection }[]): Promise<Uint8Array> {
   const zip = new JSZip();
-  
+
   // Create the archive.json file with collection metadata
   const archiveData = {
     collection: collections.reduce((acc, collection) => {
@@ -649,18 +746,18 @@ async function createZipFile(collections: { name: string; data: PostmanCollectio
       return acc;
     }, {} as Record<string, boolean>)
   };
-  
+
   zip.file('archive.json', JSON.stringify(archiveData, null, 2));
-  
+
   // Create collection folder and add each collection as a JSON file
   const collectionFolder = zip.folder('collection');
-  
+
   collections.forEach(collection => {
     const fileName = `${collection.data.info._postman_id}.json`;
     const jsonContent = JSON.stringify(collection.data, null, 2);
     collectionFolder!.file(fileName, jsonContent);
   });
-  
+
   // Generate the ZIP file as Uint8Array
   return zip.generateAsync({
     type: 'uint8array',
