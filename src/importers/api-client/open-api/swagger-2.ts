@@ -1,7 +1,7 @@
 import { ImportFile } from "../types";
 import { OpenAPIV2 } from 'openapi-types';
 import { parse as parseYaml } from 'yaml';
-import { unthrowableParseJson, getParamValue, getKeyValueDataTypeFromParam } from "./utils";
+import { unthrowableParseJson, getParamValue, getKeyValueDataTypeFromParam, generateId } from "./utils";
 import { RQAPI, RequestMethod, KeyValuePair, RequestContentType, Authorization, KeyValueDataType } from "@requestly/shared/types/entities/apiClient";
 import { NestedCollectionMap } from "./types";
 import { ApiClientImporterMethod } from "~/importers/types";
@@ -203,6 +203,7 @@ const extractExamples = (
   operation: OpenAPIV2.OperationObject,
   httpRequest: RQAPI.HttpRequest,
   authConfig: RQAPI.Auth,
+  parentRequestId: string,
 ): any[] => {
   const examples: any[] = [];
   if (!operation.responses) return examples;
@@ -227,8 +228,8 @@ const extractExamples = (
         : [];
 
       examples.push({
-        id: "",
-        parentRequestId: "",
+        id: generateId(),
+        parentRequestId,
         collectionId: "",
         name: statusText,
         type: "example_api",
@@ -333,7 +334,8 @@ const createApiRecord = (
   };
 
   const authConfig = createAuthConfig(operation, specData);
-  const examples = extractExamples(operation, requestData, authConfig);
+  const apiRecordId = generateId();
+  const examples = extractExamples(operation, requestData, authConfig, apiRecordId);
 
   const httpApiEntry: RQAPI.HttpApiEntry & { examples?: any[] } = {
     type: RQAPI.ApiEntryType.HTTP,
@@ -349,7 +351,7 @@ const createApiRecord = (
   };
 
   const apiRecord: RQAPI.ApiRecord = {
-    id: "",
+    id: apiRecordId,
     name: `${method} ${path}`,
     description: operation.description || '',
     collectionId: "",
@@ -401,7 +403,7 @@ const convertNestedCollectionToRQAPI = (
     );
 
     const collectionRecord: RQAPI.CollectionRecord = {
-      id: "",
+      id: generateId(),
       name: nestedCollection.name,
       description: getDescriptionFromTags(specData.tags || [], nestedCollection.path),
       collectionId: "",
@@ -446,7 +448,7 @@ const parseSpecification = (specData: OpenAPIV2.Document): RQAPI.CollectionRecor
   );
 
   const rootCollection: RQAPI.CollectionRecord = {
-        id: "",
+        id: generateId(),
         name: specData.info?.title || 'Swagger Collection',
         description: specData.info?.description || 'Collection imported from Swagger 2.0 specification',
         collectionId: "",

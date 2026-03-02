@@ -66,6 +66,20 @@ const buildNestedCollections = (specData: OpenAPIV3.Document): NestedCollectionM
       methods: methods.map(m => m.toUpperCase())
     };
 
+    if (pathSegments.length === 0) {
+        const rootKey = "/";
+        if (!collections[rootKey]) {
+          collections[rootKey] = {
+            name: rootKey,
+            path: rootKey,
+            children: {},
+            requests: [],
+        };
+        }
+        collections[rootKey].requests.push(pathGroup);
+        return;
+      }
+
     let currentLevel = collections;
     let currentPath = '';
 
@@ -122,11 +136,15 @@ const createAuthConfig = (operation: OpenAPIV3.OperationObject, specData: OpenAP
             }
           }
         }
-        else if(schemeData.scheme === "basic"){
+        if(schemeData.scheme === "basic"){
           return {
             currentAuthType: Authorization.Type.BASIC_AUTH,
             authConfigStore: {}
           }
+        }
+        return {
+          currentAuthType: Authorization.Type.INHERIT,
+          authConfigStore: {}
         }
       default:
         return {

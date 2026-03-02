@@ -332,7 +332,7 @@ function convertRequest(
   requestlyRecord: RQAPI.ApiRecord
 ): PostmanRequest | undefined {
   const requestData = requestlyRecord.data;
-  if (!requestData) {
+  if (!requestData || requestData.type === RQAPI.ApiEntryType.GRAPHQL) {
     return undefined;
   }
 
@@ -411,7 +411,9 @@ function convertRequest(
       };
     } else if (requestData.request.contentType === "application/x-www-form-urlencoded") {
       // Handle URL encoded form data - these are always simple text fields
-      const formFields = Array.isArray(requestData.request.body) ? requestData.request.body : [];
+        const formFields = Array.isArray(requestData.request.body)
+            ? requestData.request.body
+            : requestData.request.bodyContainer?.form || [];
       
       body = {
         mode: "urlencoded",
@@ -437,10 +439,6 @@ function convertRequest(
       };
     }
   }
-}
-
-if(requestData.type === RQAPI.ApiEntryType.GRAPHQL){
-  return undefined;
 }
 
   const postmanUrl: PostmanUrl = {
@@ -576,7 +574,10 @@ function convertToPostmanItems(
       }
     } else if (record.type === "api") {
       const postmanRequest = convertRequest(record);
-      item.request = postmanRequest;
+      if (!postmanRequest) {
+        return null;
+      }
+        item.request = postmanRequest;
 
       item.response = record.data.examples
         ? record.data.examples.map((ex) => convertExample(ex, postmanRequest))
@@ -588,7 +589,7 @@ function convertToPostmanItems(
     }
 
     return item;
-  });
+  }).filter(Boolean) as PostmanItem[];;
 }
 
 /**
