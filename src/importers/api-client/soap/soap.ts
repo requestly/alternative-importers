@@ -498,7 +498,7 @@ const createSoapRequest = (
         pathVariables: [],
         body: soapEnvelope,
         bodyContainer: {
-            text: soapEnvelope,
+            text: '',
             form: [],
             multipartForm: [],
         },
