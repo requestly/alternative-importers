@@ -4,7 +4,6 @@ export { convertRequestlyEnvironmentsToPostman } from './environment';
 
 export type {
   RequestlyExport,
-  RequestlyRecord,
   PostmanCollection,
   PostmanItem,
   MultipleCollectionsResult,
