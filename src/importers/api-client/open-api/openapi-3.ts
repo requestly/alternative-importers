@@ -385,8 +385,8 @@ const extractExamples = (
   httpRequest: RQAPI.HttpRequest,
   authConfig: RQAPI.Auth,
   parentRequestId: string,
-): any[] => {
-  const examples: any[] = [];
+): RQAPI.ExampleApiRecord[] => {
+  const examples: RQAPI.ExampleApiRecord[] = [];
   if (!operation.responses) return examples;
 
   Object.entries(operation.responses).forEach(([statusCode, responseObj]) => {
@@ -440,7 +440,7 @@ const extractExamples = (
               parentRequestId: parentRequestId,
               collectionId: "",
               name: name,
-              type: "example_api",
+              type: RQAPI.RecordType.EXAMPLE_API,
               isExample: true,
               deleted: false,
               ownerId: "",
@@ -485,7 +485,7 @@ const extractExamples = (
         parentRequestId: parentRequestId,
         collectionId: "",
         name: defaultStatusText,
-        type: "example_api",
+        type: RQAPI.RecordType.EXAMPLE_API,
         isExample: true,
         deleted: false,
         ownerId: "",
