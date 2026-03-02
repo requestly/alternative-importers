@@ -1,131 +1,11 @@
 import JSZip from 'jszip';
-
+import { RQAPI, EnvironmentData, Authorization, VariableData, EnvironmentVariables } from '@requestly/shared/types/entities/apiClient';
 // Shared types for both collection and environment
-interface RQVariable {
-  id: number;
-  syncValue: string;
-  type: string;
-}
-
-interface RQAuth {
-  currentAuthType: string;
-  authConfigStore: Record<string, any>;
-}
-
-interface RQHeader {
-  id?: number;
-  key: string;
-  value: string;
-  isEnabled?: boolean;
-  type?: string;
-  description?: string;
-}
-
-interface RQQueryParam {
-  id: number;
-  key: string;
-  value: string;
-  isEnabled: boolean;
-  description?: string;
-}
-
-interface RQFormField {
-  id: number;
-  key: string;
-  value: string | Array<{
-        id: string;
-        name: string;
-        path: string;
-        size: number;
-        source: string;
-      }>;
-  isEnabled: boolean;
-  type?: "text" | "file"; // Optional since many form fields don't have this
-}
-
-// For simpler form fields (like URL-encoded) that don't have type
-interface RQSimpleFormField {
-  id: number;
-  key: string;
-  value: string;
-  isEnabled: boolean;
-}
-
-interface RQBodyContainer {
-  text: string;
-  form: RQFormField[];
-  multipartForm: RQFormField[];
-}
-
-interface RQRequest {
-  url: string;
-  method: string;
-  queryParams: RQQueryParam[];
-  headers: RQHeader[];
-  body: string | RQFormField[] | RQSimpleFormField[] | null;
-  contentType: string;
-  bodyContainer?: RQBodyContainer;
-}
-
-interface RQScripts {
-  preRequest: string;
-  postResponse: string;
-}
-
-interface RQExampleResponse {
-  status: number;
-  statusText?: string;
-  headers?: RQHeader[];
-  body?: string;
-  time?: number;
-  redirectedUrl?: string;
-}
-
-interface RQExampleData {
-  type: string;
-  request?: RQRequest;
-  response?: RQExampleResponse;
-  auth?: RQAuth;
-  scripts?: RQScripts;
-}
-
-interface RQExample {
-  id?: string;
-  name: string;
-  parentRequestId?: string;
-  collectionId?: string;
-  type?: string;
-  data: RQExampleData;
-}
-// -------------------------------------
-
-interface RQRecord {
-  name: string;
-  type: "collection" | "api";
-  data: {
-    variables?: Record<string, RQVariable>;
-    auth?: RQAuth;
-    request?: RQRequest;
-    scripts?: RQScripts;
-    examples?: RQExample[]; 
-  };
-  collectionId: string;
-  deleted: boolean;
-  description?: string;
-  id: string;
-}
-
-interface RQEnvironment {
-  id: string;
-  name: string;
-  variables: Record<string, RQVariable>;
-  isGlobal: boolean;
-}
 
 interface RQExport {
   schema_version: string;
-  records: RQRecord[];
-  environments?: RQEnvironment[];
+  records: RQAPI.ApiClientRecord[];
+  environments?: EnvironmentData[];
 }
 
 interface PostmanInfo {
@@ -249,63 +129,63 @@ interface PostmanCollection {
   event?: PostmanEvent[];
 }
 
-function convertAuth(requestlyAuth?: RQAuth): PostmanAuth | undefined {
+function convertAuth(requestlyAuth?: RQAPI.Auth): PostmanAuth | undefined {
   if (!requestlyAuth || requestlyAuth.currentAuthType === "INHERIT") {
     return undefined;
   }
 
   const authType = requestlyAuth.currentAuthType;
-  const authConfig = requestlyAuth.authConfigStore[authType];
+  const authConfig = requestlyAuth.authConfigStore;
 
   switch (authType) {
-    case "BEARER_TOKEN":
+    case Authorization.Type.BEARER_TOKEN:
       return {
         type: "bearer",
         bearer: [
           {
             key: "token",
-            value: authConfig?.bearer || "",
+            value: authConfig[Authorization.Type.BEARER_TOKEN]?.bearer || "",
             type: "string",
           },
         ],
       };
 
-    case "BASIC_AUTH":
+    case Authorization.Type.BASIC_AUTH:
       return {
         type: "basic",
         basic: [
           {
             key: "username",
-            value: authConfig?.username || "",
+            value: authConfig[Authorization.Type.BASIC_AUTH]?.username || "",
             type: "string",
           },
           {
             key: "password",
-            value: authConfig?.password || "",
+            value: authConfig[Authorization.Type.BASIC_AUTH]?.password || "",
             type: "string",
           },
         ],
       };
 
-    case "API_KEY":
+    case Authorization.Type.API_KEY:
       return {
         type: "apikey",
         apikey: [
           {
             key: "key",
-            value: authConfig?.key || "",
+            value: authConfig[Authorization.Type.API_KEY]?.key || "",
             type: "string",
           },
           {
             key: "value",
-            value: authConfig?.value || "",
+            value: authConfig[Authorization.Type.API_KEY]?.value || "",
             type: "string",
           },
-          ...(authConfig?.addTo
+          ...(authConfig[Authorization.Type.API_KEY]?.addTo
             ? [
                 {
                   key: "in",
-                  value: authConfig.addTo.toLowerCase(),
+                  value: authConfig[Authorization.Type.API_KEY]?.addTo.toLowerCase(),
                   type: "string",
                 },
               ]
@@ -319,7 +199,7 @@ function convertAuth(requestlyAuth?: RQAuth): PostmanAuth | undefined {
 }
 
 function convertVariables(
-  requestlyVariables?: Record<string, RQVariable>
+  requestlyVariables?: Omit<EnvironmentVariables, "localValue">
 ): PostmanVariable[] {
   if (!requestlyVariables) {
     return [];
@@ -328,7 +208,7 @@ function convertVariables(
   return Object.entries(requestlyVariables).map(([key, variable]) => ({
     id: crypto.randomUUID(),
     key,
-    value: variable.syncValue,
+    value: String(variable.syncValue ?? ""),
     type: variable.type === "string" ? "default" : variable.type,
   }));
 }
@@ -342,7 +222,7 @@ function convertScript(script: string): string {
   .replace(/\brq\b/g, "pm");
 }
 
-function convertScripts(requestlyScripts?: RQScripts): PostmanEvent[] {
+function convertScripts(requestlyScripts?: { preRequest?: string; postResponse?: string }): PostmanEvent[] {
   const events: PostmanEvent[] = [];
 
   if (requestlyScripts?.preRequest) {
@@ -449,16 +329,16 @@ function parseUrl(url: string): {
  * Converts Requestly request to Postman request format
  */
 function convertRequest(
-  requestlyRecord: RQRecord
+  requestlyRecord: RQAPI.ApiRecord
 ): PostmanRequest | undefined {
-  const requestData = requestlyRecord.data.request;
+  const requestData = requestlyRecord.data;
   if (!requestData) {
     return undefined;
   }
 
-  const { host, path, protocol, variables } = parseUrl(requestData.url);
+  const { host, path, protocol, variables } = parseUrl(requestData.request.url);
 
-  const [, queryString] = requestData.url.split("?");
+  const [, queryString] = requestData.request.url.split("?");
   const queryParamsMap = new Map<string, PostmanQueryParam>();
 
   // First, add URL query parameters (disabled by default)
@@ -473,8 +353,9 @@ function convertRequest(
     });
   }
 
+  if (requestData.type === RQAPI.ApiEntryType.HTTP) {
   // Then, add/override with request query parameters (respecting their enabled state)
-  requestData.queryParams.forEach((param) => {
+  requestData.request.queryParams.forEach((param) => {
     queryParamsMap.set(param.key, {
       key: param.key,
       value: param.value,
@@ -482,10 +363,11 @@ function convertRequest(
       description: param.description,
     });
   });
+}
 
   const allQueryParams = Array.from(queryParamsMap.values());
 
-  const headers: PostmanHeader[] = requestData.headers.map((header) => ({
+  const headers: PostmanHeader[] = requestData.request.headers.map((header) => ({
     key: header.key,
     value: header.value,
     type: header.type || "text",
@@ -495,11 +377,12 @@ function convertRequest(
 
   let body: PostmanBody | undefined;
 
+  if(requestData.type === RQAPI.ApiEntryType.HTTP) {
   // Handle different body types based on content type and body structure
-  if (requestData.body !== null && requestData.body !== undefined) {
-    if (requestData.contentType === "multipart/form-data") {
+  if (requestData.request.body !== null && requestData.request.body !== undefined) {
+    if (requestData.request.contentType === "multipart/form-data") {
       // Handle multipart form data
-      const formFields = Array.isArray(requestData.body) ? requestData.body : requestData.bodyContainer?.multipartForm || [];
+      const formFields = Array.isArray(requestData.request.body) ? requestData.request.body : requestData.request.bodyContainer?.multipartForm || [];
       
       body = {
         mode: "formdata",
@@ -510,7 +393,7 @@ function convertRequest(
           const postmanField: PostmanFormField = {
             key: field.key,
             disabled: !field.isEnabled,
-            type: fieldType,
+            type: fieldType as "text" | "file" | undefined,
           };
 
           if (fieldType === "file" && Array.isArray(field.value)) {
@@ -526,9 +409,9 @@ function convertRequest(
           return postmanField;
         }),
       };
-    } else if (requestData.contentType === "application/x-www-form-urlencoded") {
+    } else if (requestData.request.contentType === "application/x-www-form-urlencoded") {
       // Handle URL encoded form data - these are always simple text fields
-      const formFields = Array.isArray(requestData.body) ? requestData.body : [];
+      const formFields = Array.isArray(requestData.request.body) ? requestData.request.body : [];
       
       body = {
         mode: "urlencoded",
@@ -539,13 +422,13 @@ function convertRequest(
           type: "text",
         })),
       };
-    } else if (typeof requestData.body === "string" && requestData.body.trim()) {
+    } else if (typeof requestData.request.body === "string" && requestData.request.body.trim()) {
       // Handle raw body (JSON or raw text)
-      let language = requestData.contentType === "application/json" ? "json" : "text";
+      let language = requestData.request.contentType === "application/json" ? "json" : "text";
 
       body = {
         mode: "raw",
-        raw: requestData.body,
+        raw: requestData.request.body,
         options: {
           raw: {
             language,
@@ -554,9 +437,14 @@ function convertRequest(
       };
     }
   }
+}
+
+if(requestData.type === RQAPI.ApiEntryType.GRAPHQL){
+  return undefined;
+}
 
   const postmanUrl: PostmanUrl = {
-    raw: requestData.url,
+    raw: requestData.request.url,
     host,
     path,
     protocol,
@@ -565,7 +453,7 @@ function convertRequest(
   };
 
   return {
-    method: requestData.method,
+    method: requestData.request.method,
     header: headers,
     ...(body && { body }),
     url: postmanUrl,
@@ -579,7 +467,7 @@ function convertRequest(
 }
 
 function convertExample(
-  example: RQExample,
+  example: RQAPI.ExampleApiRecord,
   parentRequest?: PostmanRequest,
 ): PostmanResponse {
   const exampleData = example.data || {};
@@ -605,16 +493,23 @@ function convertExample(
   // If example has its own request payload, wrap it in a mock record to safely reuse convertRequest
   let originalRequest = parentRequest;
   if (exampleData.request) {
-    const mockRecord: RQRecord = {
+    const mockRecord: RQAPI.HttpApiRecord = {
       id: "mock",
       name: "mock",
-      type: "api",
+      type: RQAPI.RecordType.API,
       collectionId: "mock",
       deleted: false,
       data: {
-        request: exampleData.request,
+        request: exampleData.request as RQAPI.HttpRequest,
         auth: exampleData.auth,
+        type: RQAPI.ApiEntryType.HTTP,
+        response: null,
       },
+      ownerId: "mock",
+      createdBy: "mock",
+      updatedBy: "mock",
+      createdTs: Date.now(),
+      updatedTs: Date.now(),
     };
     originalRequest = convertRequest(mockRecord) || parentRequest;
   }
@@ -635,9 +530,9 @@ function convertExample(
  * Builds a hierarchical structure from flat Requestly records
  */
 function buildHierarchy(
-  records: RQRecord[]
-): Map<string, RQRecord[]> {
-  const hierarchy = new Map<string, RQRecord[]>();
+  records: RQAPI.ApiClientRecord[]
+): Map<string, RQAPI.ApiClientRecord[]> {
+  const hierarchy = new Map<string, RQAPI.ApiClientRecord[]>();
 
   records.forEach((record) => {
     const parentId = record.collectionId || "root";
@@ -654,8 +549,8 @@ function buildHierarchy(
  * Converts records to Postman items recursively
  */
 function convertToPostmanItems(
-  records: RQRecord[],
-  hierarchy: Map<string, RQRecord[]>
+  records: RQAPI.ApiClientRecord[],
+  hierarchy: Map<string, RQAPI.ApiClientRecord[]>
 ): PostmanItem[] {
   return records.map((record) => {
     const item: PostmanItem = {
@@ -700,8 +595,8 @@ function convertToPostmanItems(
  * Creates a single Postman collection from a root collection
  */
 function createCollectionFromRoot(
-  rootCollection: RQRecord,
-  hierarchy: Map<string, RQRecord[]>
+  rootCollection: RQAPI.CollectionRecord,
+  hierarchy: Map<string, RQAPI.ApiClientRecord[]>
 ): PostmanCollection {
   const children = hierarchy.get(rootCollection.id) || [];
   const allItems = convertToPostmanItems(children, hierarchy);
@@ -803,7 +698,7 @@ export function convertRequestlyCollectionToPostman(
   const rootCollections = records.filter(
     (record) => record.type === "collection" && 
     (!record.collectionId || !existingCollectionIds.has(record.collectionId))
-  );
+  ) as RQAPI.CollectionRecord[];
 
   const hierarchy = buildHierarchy(records);
 
@@ -880,7 +775,6 @@ export function convertRequestlyCollectionToPostman(
 
 export type {
   RQExport as RequestlyExport,
-  RQRecord as RequestlyRecord,
   PostmanCollection,
   PostmanItem,
   MultipleCollectionsResult,
