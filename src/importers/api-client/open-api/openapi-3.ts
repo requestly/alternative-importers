@@ -410,7 +410,7 @@ const extractExamples = (
   Object.entries(operation.responses).forEach(([statusCode, responseObj]) => {
     // SwaggerParser resolves refs, safely cast to ResponseObject
     const response = responseObj as OpenAPIV3.ResponseObject;
-    const parsedStatusCode = parseInt(statusCode) || 200;
+    const parsedStatusCode = /^\d{3}$/.test(statusCode) ? Number(statusCode) : 200;
     const defaultStatusText = response.description || "OK";
 
     if (response.content) {

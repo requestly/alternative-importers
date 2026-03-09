@@ -589,7 +589,7 @@ function convertToPostmanItems(
     }
 
     return item;
-  }).filter(Boolean) as PostmanItem[];;
+  }).filter(Boolean) as PostmanItem[];
 }
 
 /**
