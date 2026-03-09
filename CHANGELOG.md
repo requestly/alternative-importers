@@ -1,5 +1,12 @@
 
 
+## [0.1.2](https://github.com/requestly/alternative-importers/compare/v0.1.0...v0.1.2) (2026-03-09)
+
+
+### 🔧 Chores
+
+* chore: bump package version (#29) ([](https://github.com/requestly/alternative-importers/commit/28932d41a1df8335f8cb395eff1ff95bf3819eec)), closes [#29](https://github.com/requestly/alternative-importers/issues/29)
+
 # [0.1.0](https://github.com/requestly/alternative-importers/compare/v0.0.12...v0.1.0) (2026-02-20)
 
 
