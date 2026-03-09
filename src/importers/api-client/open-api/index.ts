@@ -10,14 +10,14 @@ export const openApiImporter = async (specs: ImportFile): Promise<ApiClientImpor
         openApi3Importer,
         swagger2Importer
     ];
-
+    
 
     for (const importer of importers) {
         try {
             const result = await importer.convert(specs);
             return result;
         } catch (error) {
-            throw error;
+            continue;
         }
     }
 

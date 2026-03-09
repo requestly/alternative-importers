@@ -83,3 +83,15 @@ export const getKeyValueDataTypeFromParam = (paramSchema: any): KeyValueDataType
   }
   return KeyValueDataType.STRING;
 };
+
+// Utility to generate unique IDs mimicking Requestly's format
+export const generateId = (length = 20): string => {
+  const chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let result = "";
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
+
