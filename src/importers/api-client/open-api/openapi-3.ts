@@ -1,7 +1,7 @@
 import { ImportFile } from "../types";
 import { OpenAPIV3 } from 'openapi-types';
 import { parse as parseYaml } from 'yaml';
-import { unthrowableParseJson, getParamValue, getKeyValueDataTypeFromParam, generateId } from "./utils";
+import { unthrowableParseJson, getParamValue, getKeyValueDataTypeFromParam } from "./utils";
 import { RQAPI,RequestMethod, KeyValuePair, RequestContentType, Authorization, EnvironmentVariables, EnvironmentData, EnvironmentVariableType, KeyValueDataType } from "@requestly/shared/types/entities/apiClient";
 import { NestedCollectionMap } from "./types";
 import { ApiClientImporterMethod } from "~/importers/types";
@@ -393,7 +393,6 @@ const extractExamples = (
   operation: OpenAPIV3.OperationObject,
   httpRequest: RQAPI.HttpRequest,
   authConfig: RQAPI.Auth,
-  parentRequestId: string,
 ): RQAPI.ExampleApiRecord[] => {
   const examples: RQAPI.ExampleApiRecord[] = [];
   if (!operation.responses) return examples;
@@ -445,8 +444,8 @@ const extractExamples = (
         // Push a separate record for every example found
         examplesToPush.forEach(({ bodyStr, name }) => {
             examples.push({
-              id: generateId(), 
-              parentRequestId: parentRequestId,
+              id: "", 
+              parentRequestId: "",
               collectionId: "",
               name: name,
               type: RQAPI.RecordType.EXAMPLE_API,
@@ -490,8 +489,8 @@ const extractExamples = (
     } else {
       // Handles paths with no content (e.g., 204 No Content, empty 404s)
       examples.push({
-        id: generateId(),
-        parentRequestId: parentRequestId,
+        id: "",
+        parentRequestId: "",
         collectionId: "",
         name: defaultStatusText,
         type: RQAPI.RecordType.EXAMPLE_API,
@@ -533,7 +532,6 @@ const createApiRecord = (
   specData: OpenAPIV3.Document
 ): RQAPI.ApiRecord => {
   // Generate Request ID to be shared with examples
-  const apiRecordId = generateId();
 
   const resolvedPath = path.replace(/\{([^}]+)\}/g, ':$1');
   const fullUrl = `{{base_url}}${resolvedPath}`;
@@ -583,7 +581,6 @@ const createApiRecord = (
     operation,
     httpRequest,
     authConfig,
-    apiRecordId,
   );
 
   const httpApiEntry: RQAPI.HttpApiEntry & { examples?: any[] } = {
@@ -600,7 +597,7 @@ const createApiRecord = (
   };
 
   const apiRecord: RQAPI.ApiRecord = {
-    id: apiRecordId, // Use generated ID here
+    id: "",
     name: operation.summary ||operation?.operationId ||`${method} ${path}`,
     description: operation.description || '',
     collectionId: "",
@@ -652,7 +649,7 @@ const convertNestedCollectionToRQAPI = (
     );
 
     const collectionRecord: RQAPI.CollectionRecord = {
-      id: generateId(),
+      id: "",
       name: nestedCollection.name,
        description: getDescriptionFromTags(specData.tags || [], nestedCollection.path),
       collectionId: "",
@@ -694,7 +691,7 @@ const parseSpecification = (specData: OpenAPIV3.Document): RQAPI.CollectionRecor
     const subCollections = convertNestedCollectionToRQAPI(collections, specData, currentTimestamp);
 
   const rootCollection: RQAPI.CollectionRecord = {
-    id: generateId(),
+    id: "",
     name: specData.info?.title || 'OpenAPI Collection',
     description: specData.info?.description || 'Collection imported from OpenAPI specification',
     collectionId: "",
@@ -725,7 +722,7 @@ const parseSpecification = (specData: OpenAPIV3.Document): RQAPI.CollectionRecor
 
 const createServerEnvironment = (server: OpenAPIV3.ServerObject, index: number, title: string): EnvironmentData => {
   return {
-    id: generateId(),
+    id: "",
     name: `${title} ${index > 0 ? `(${index + 1})` : ''}`,
     variables: createServerVariables([server]),
   }
