@@ -131,7 +131,7 @@ const createAuthConfig = (operation: OpenAPIV3.OperationObject, specData: OpenAP
             currentAuthType: Authorization.Type.BEARER_TOKEN,
             authConfigStore: {
               [Authorization.Type.BEARER_TOKEN]: {
-                bearer: schemeData.bearerFormat || ""
+                bearer: ""
               }
             }
           }
@@ -154,7 +154,8 @@ const createAuthConfig = (operation: OpenAPIV3.OperationObject, specData: OpenAP
     }
   }
 
-  if(!operation.security){
+  const securityRequirements = operation.security ?? specData.security;
+  if(!securityRequirements){
     return {
       currentAuthType: Authorization.Type.INHERIT,
       authConfigStore: {}
@@ -162,7 +163,7 @@ const createAuthConfig = (operation: OpenAPIV3.OperationObject, specData: OpenAP
   }
 
   let authConfig = null;
-  for(const securityScheme of operation.security){
+  for (const securityScheme of securityRequirements) {
     const [key,] = Object.entries(securityScheme)[0];
     const schemeData = specData.components?.securitySchemes?.[key];
     if(schemeData && typeof schemeData === 'object' && 'type' in schemeData && (schemeData.type === "http" || schemeData.type === "apiKey")){
@@ -275,21 +276,22 @@ export const getMultipartFormRequestBody = (schema: OpenAPIV3.SchemaObject): RQA
 
 const getJsonValue = (schema: OpenAPIV3.SchemaObject): any => {
 
-  switch (schema.type) {
-    case 'string':
-      return schema.example ?? schema.default ?? '';
-    case 'number':
-    case 'integer':
-      return schema.example ?? schema.default ?? 0;
-    case 'boolean':
-      return schema.example ?? schema.default ?? false;
-    case 'array':
-      if (schema.example !== undefined) {
+   if (schema.example !== undefined) {
         return schema.example;
       }
       if (schema.default !== undefined) {
         return schema.default;
       }
+
+  switch (schema.type) {
+    case 'string':
+      return '';
+    case 'number':
+    case 'integer':
+      return 0;
+    case 'boolean':
+      return false;
+    case 'array':
       if (schema.items) {
         const itemsSchema = schema.items as OpenAPIV3.SchemaObject;
         return [getJsonValue(itemsSchema)];
@@ -313,18 +315,7 @@ const getJsonValue = (schema: OpenAPIV3.SchemaObject): any => {
 }
 
 export const getJsonRequestBody = (schema: OpenAPIV3.SchemaObject): string => {
-  const json: Record<string, any> = {};
-
-  if (schema.properties) {
-    Object.entries(schema.properties).forEach(([key, property]) => {
-      if (property) {
-        const propSchema = property as OpenAPIV3.SchemaObject;
-        json[key] = getJsonValue(propSchema);
-      }
-    });
-  }
-
-  return JSON.stringify(json, null, 2);
+  return JSON.stringify(getJsonValue(schema), null, 2);
 }
 
 
@@ -774,7 +765,6 @@ export const convert: ApiClientImporterMethod<ImportFile> = async(specFile: Impo
     };
 
   }catch(error){
-    console.error("Error validating spec file:", error);
     throw new Error("Invalid OpenAPI specification");
   }
 }

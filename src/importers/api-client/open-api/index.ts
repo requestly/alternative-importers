@@ -17,7 +17,6 @@ export const openApiImporter = async (specs: ImportFile): Promise<ApiClientImpor
             const result = await importer.convert(specs);
             return result;
         } catch (error) {
-            console.warn(`Importer failed, trying next one...`, error);
             continue;
         }
     }

@@ -505,7 +505,6 @@ export const convert: ApiClientImporterMethod<ImportFile> = async(specFile: Impo
     };
 
   }catch(error){
-    console.error("Error validating Swagger 2.0 spec file:", error);
     throw new Error("Invalid Swagger 2.0 specification");
   }
 }
