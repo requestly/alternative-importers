@@ -259,13 +259,15 @@ export const getMultipartFormRequestBody = (schema: OpenAPIV3.SchemaObject): RQA
     Object.entries(schema.properties).forEach(([key, property], index) => {
       if (property) {
         const propSchema = property as OpenAPIV3.SchemaObject;
-        const value = propSchema.example ?? propSchema.default ?? '';
+        const isFileField = propSchema.format === 'binary' || propSchema.format === 'base64';
+        const value = (isFileField ? [] : String(propSchema.example ?? propSchema.default ?? '')) as any;
 
         formData.push({
           id: index + 1,
           key: key,
-          value: "",
-          isEnabled: true
+          value,
+          isEnabled: true,
+          type: isFileField ? 'file' : 'text',
         });
       }
     });
