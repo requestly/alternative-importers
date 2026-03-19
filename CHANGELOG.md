@@ -1,6 +1,6 @@
 
 
-## [0.2.1](https://github.com/requestly/alternative-importers/compare/v0.2.0...version_bump_openApi) (2026-03-19)
+## [0.2.1](https://github.com/requestly/alternative-importers/compare/v0.2.0...v0.2.1) (2026-03-19)
 
 # [0.2.0](https://github.com/requestly/alternative-importers/compare/v0.1.2...v0.2.0) (2026-03-12)
 
