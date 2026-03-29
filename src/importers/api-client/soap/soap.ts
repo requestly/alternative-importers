@@ -105,6 +105,26 @@ const isWsdl = (content: string): boolean => {
     return isWsdl11 || isWsdl20;
 };
 
+const isSoapUiProject = (content: string): boolean => {
+    return content.includes("http://eviware.com/soapui/config") && content.includes("soapui-project");
+};
+
+const extractWsdlFromSoapUiProject = (content: string): string => {
+    const contentBlockRegex = /<con:content>\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*<\/con:content>/g;
+    const candidates: string[] = [];
+    let match: RegExpExecArray | null;
+    while ((match = contentBlockRegex.exec(content)) !== null) {
+        const candidate = match[1].trim();
+        if (candidate) candidates.push(candidate);
+    }
+    const wsdlCandidate = candidates.find(c => isWsdl(c));
+    if (wsdlCandidate) return wsdlCandidate;
+    throw createSoapError(
+        SoapImportErrorType.INVALID_WSDL_STRUCTURE,
+        "SoapUI project file does not contain an embedded WSDL definition. Please ensure the project was saved with the WSDL definition cache populated."
+    );
+};
+
 const buildWsdlContext = (definitions: WsdlDefinitions): WsdlContext => {
     const context: WsdlContext = {
         definitions,
@@ -834,7 +854,11 @@ const convertWsdlToRQAPI = (context: WsdlContext): RQAPI.CollectionRecord => {
 export const convert: ApiClientImporterMethod<ImportFile> = async (
     file: ImportFile,
 ) => {
-    if (!isWsdl(file.content)) {
+    let fileContent = file.content;
+
+    if (isSoapUiProject(fileContent)) {
+        fileContent = extractWsdlFromSoapUiProject(fileContent);
+    } else if (!isWsdl(fileContent)) {
         throw createSoapError(
             SoapImportErrorType.UNSUPPORTED_WSDL,
             "Invalid WSDL file format. File must contain valid WSDL definitions.",
@@ -844,7 +868,7 @@ export const convert: ApiClientImporterMethod<ImportFile> = async (
     let definitions: WsdlDefinitions;
 
     try {
-        definitions = await preProcessWsdl(file.content);
+        definitions = await preProcessWsdl(fileContent);
     } catch (error) {
         if ((error as SoapError).type) {
             throw error;
