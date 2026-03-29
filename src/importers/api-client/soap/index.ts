@@ -5,3 +5,7 @@ import { ApiClientImporterOutput } from '~/importers/types';
 export const soapImporter = async (wsdl: ImportFile): Promise<ApiClientImporterOutput> => {
     return await soap.convert(wsdl);
 }
+
+export const soapUiImporter = async (project: ImportFile): Promise<ApiClientImporterOutput> => {
+    return await soap.convert(project);
+}
